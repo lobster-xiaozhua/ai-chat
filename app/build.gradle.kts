@@ -93,6 +93,9 @@ dependencies {
 
     implementation("androidx.security:security-crypto:1.0.0")
 
+    // Coil —— Compose 图片加载库（用于 content:// URI / http URL / data URI）
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")

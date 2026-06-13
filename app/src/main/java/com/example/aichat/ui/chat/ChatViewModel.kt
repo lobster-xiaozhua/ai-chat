@@ -1,13 +1,15 @@
 package com.example.aichat.ui.chat
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.data.model.Message
 import com.example.aichat.data.repository.AiRepository
-import com.example.aichat.data.repository.ApiException
 import com.example.aichat.data.repository.ChatRepository
 import com.example.aichat.data.repository.SettingsRepository
+import com.example.aichat.util.toDataUriList
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,25 +17,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/* ======================================================================
- * 聊天界面的状态与逻辑中枢
- * ======================================================================
- * 暴露的 StateFlow：
- *   messages            → 已完成的历史消息
- *   streamingAssistant  → 当前正在生成的 assistant 文本（逐 token 更新）
- *   isGenerating        → 是否正在生成
- *   error               → 错误信息（UI 层用 Snackbar 展示）
- *   currentModel        → 当前选择的模型名
- *   selectedModelIds    → 在 ModelPicker 中勾选的常用模型列表
- *   jsonMode            → 是否启用 JSON 输出模式（切换开关）
- *   pendingImageUrls    → 用户刚选择的图片 URL（多模态输入用，发送后清空）
- * ====================================================================== */
-
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val aiRepository: AiRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     /* ---------- 状态 ---------- */
@@ -55,10 +44,11 @@ class ChatViewModel @Inject constructor(
     private val _jsonMode = MutableStateFlow(false)
     val jsonMode: StateFlow<Boolean> = _jsonMode.asStateFlow()
 
-    // 待发送的图片附件（多模态输入），sendMessage 后自动清空
+    // 待发送图片附件（content:// URI 字符串列表）
     private val _pendingImageUrls = MutableStateFlow<List<String>>(emptyList())
     val pendingImageUrls: StateFlow<List<String>> = _pendingImageUrls.asStateFlow()
 
+    // 用户已选模型列表（用于快速切换）
     private val _selectedModelIds = MutableStateFlow(emptyList<String>())
     val selectedModelIds: StateFlow<List<String>> = _selectedModelIds.asStateFlow()
 
@@ -89,22 +79,30 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /* ---------- 对外操作 ---------- */
-
+    /* ---------- 对外操作：JSON 模式 ---------- */
     fun setJsonMode(on: Boolean) { _jsonMode.value = on }
     fun toggleJsonMode() { _jsonMode.value = !_jsonMode.value }
 
-    fun addImageUrl(url: String) {
-        _pendingImageUrls.value = _pendingImageUrls.value + url
+    /* ---------- 对外操作：图片附件 ---------- */
+
+    /** 添加一组图片 URI（来自 Photo Picker）*/
+    fun addImageUrls(urls: List<String>) {
+        val current = _pendingImageUrls.value
+        val combined = current + urls.filterNot { it in current }
+        _pendingImageUrls.value = combined
     }
 
+    /** 从待发送列表移除一张图片 */
     fun removeImageUrl(url: String) {
         _pendingImageUrls.value = _pendingImageUrls.value - url
     }
 
+    /** 清空待发送图片列表 */
     fun clearPendingImages() {
         _pendingImageUrls.value = emptyList()
     }
+
+    /* ---------- 对外操作：会话与消息 ---------- */
 
     fun setConversation(conversationId: String) {
         if (currentConversationId == conversationId && _messages.value.isNotEmpty()) return
@@ -112,7 +110,7 @@ class ChatViewModel @Inject constructor(
         generationJob?.cancel()
         _isGenerating.value = false
         _streamingAssistant.value = null
-        _pendingImageUrls.value = emptyList()
+        clearPendingImages()
 
         viewModelScope.launch {
             val history = chatRepository.getMessagesAsList(conversationId)
@@ -125,15 +123,16 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 发送消息：
-     *   1. 用户消息（文本 + 可选图片）立即写入列表
-     *   2. 调用 AiRepository 进入流式生成
-     *   3. 完成后把 assistant 回复写回列表
+     * 发送消息 —— 支持纯文本、纯图片、文本+图片三种组合。
+     *   · 文本/图片立即写入消息列表（消息气泡可见）
+     *   · 异步 content:// → data://（base64）转换，供多模态 API 使用
+     *   · 流式响应期间逐 token 更新界面
+     *   · 完成后 assistant 消息写回持久层
      */
     fun sendMessage(text: String) {
-        if (text.isBlank() || _isGenerating.value) return
-
-        val images = _pendingImageUrls.value // 快照，发送后清空
+        // snapshot 当前图片列表，发送后清空
+        val images = _pendingImageUrls.value
+        if (text.isBlank() && images.isEmpty()) return
         _pendingImageUrls.value = emptyList()
 
         val now = System.currentTimeMillis()
@@ -141,6 +140,7 @@ class ChatViewModel @Inject constructor(
             conversationId = currentConversationId,
             role = "user",
             content = text,
+            imageUrls = Message.encodeImageUrls(images),
             timestamp = now
         )
 
@@ -160,9 +160,12 @@ class ChatViewModel @Inject constructor(
 
             try {
                 val apiKey = settingsRepository.getApiKey()
-                if (apiKey.isBlank()) throw ApiException.Unauthorized("请先在设置中配置 API Key")
+                if (apiKey.isBlank()) throw com.example.aichat.data.repository.ApiException.Unauthorized("请先在设置中配置 API Key")
 
                 val temperature = _temperatureStr.value.toDoubleOrNull() ?: 1.0
+
+                // 把 content:// URI 异步转换为 base64 data URI（多模态 API 需要）
+                val dataUriList = if (images.isNotEmpty()) images.toDataUriList(context, maxKb = 512) else emptyList()
 
                 aiRepository.streamChat(
                     messages = historyForApi,
@@ -172,14 +175,14 @@ class ChatViewModel @Inject constructor(
                     apiKey = apiKey,
                     temperature = temperature,
                     jsonMode = _jsonMode.value,
-                    userImageUrls = images
+                    userImageUrls = dataUriList
                 ).collect { token ->
                     builder.append(token)
                     tokensSinceEmit++
-                    val now = System.nanoTime()
-                    if (now - lastEmitNs > throttleNs || tokensSinceEmit >= 3) {
+                    val now2 = System.nanoTime()
+                    if (now2 - lastEmitNs > throttleNs || tokensSinceEmit >= 3) {
                         _streamingAssistant.value = builder.toString()
-                        lastEmitNs = now
+                        lastEmitNs = now2
                         tokensSinceEmit = 0
                     }
                 }
@@ -197,8 +200,7 @@ class ChatViewModel @Inject constructor(
                     historyForApi.add("assistant" to finalContent)
                     viewModelScope.launch { runCatching { chatRepository.insertMessage(finalMsg) } }
                 }
-
-            } catch (e: ApiException) {
+            } catch (e: com.example.aichat.data.repository.ApiException) {
                 _error.value = e.message ?: "发生错误"
                 historyForApi.removeLastOrNull()
             } catch (e: kotlinx.coroutines.CancellationException) {

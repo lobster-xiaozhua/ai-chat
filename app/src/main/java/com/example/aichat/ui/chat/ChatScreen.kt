@@ -1,5 +1,6 @@
 package com.example.aichat.ui.chat
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Divider
@@ -45,12 +47,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.example.aichat.data.model.Conversation
+import com.example.aichat.data.model.Message
 import com.example.aichat.ui.theme.Primary
 import kotlinx.coroutines.launch
 
@@ -64,24 +70,29 @@ fun ChatScreen(
     val chatViewModel: ChatViewModel = hiltViewModel()
     val conversationListViewModel: ConversationListViewModel = hiltViewModel()
 
-    // 读取已选模型列表（用户在全屏幕 ModelPickerScreen 中勾选的模型）
+    // 已选模型 + 历史消息
     val selectedModelIds = chatViewModel.selectedModelIds.collectAsState()
-
-    // 历史消息 —— 只有在新增完整消息时才变化
     val messages by chatViewModel.messages.collectAsState()
     val isGenerating by chatViewModel.isGenerating.collectAsState()
     val error by chatViewModel.error.collectAsState()
     val currentModel by chatViewModel.currentModel.collectAsState()
-    // 正在生成的内容 —— 每 token 变化，单独渲染为一个气泡
     val streamingText by chatViewModel.streamingAssistant.collectAsState()
     val conversations by conversationListViewModel.conversations.collectAsState()
+
+    // 待发送图片（从图片选择器获取的 content:// URI 字符串列表）
+    val pendingImageUrls by chatViewModel.pendingImageUrls.collectAsState()
+
+    // —— 图片选择器（Android 官方 Photo Picker）
+    val imagePicker = rememberImagePicker(onPicked = { newUris ->
+        chatViewModel.addImageUrls(newUris)
+    })
 
     var inputText by remember { mutableStateOf("") }
     var drawerOpen by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
     var activeConversationId by remember { mutableStateOf<String?>(null) }
 
-    // 展示给用户的快速切换模型列表（优先用户已选；为空则用当前模型作为唯一选项）
+    // 快速切换模型
     val quickModels = selectedModelIds.value.ifEmpty { listOf(currentModel) }
         .distinct().let { if (it.isEmpty()) listOf(currentModel) else it }
 
@@ -96,21 +107,14 @@ fun ChatScreen(
         }
     }
 
-    // 自动滚动：流式期间用 scrollToItem（不触发动画状态机），仅在完整消息增加时才用动画。
-    // 每 50ms 的高频更新下，animateScrollToItem 会反复被取消/重启，徒增 CPU。
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            coroutineScope.launch {
-                listState.animateScrollToItem(messages.size - 1)
-            }
+            coroutineScope.launch { listState.animateScrollToItem(messages.size - 1) }
         }
     }
     LaunchedEffect(streamingText) {
         if (streamingText != null) {
-            // 流式气泡位于最后一项：messages.size（因为它在 LazyColumn 的 items 之后）
-            coroutineScope.launch {
-                listState.scrollToItem(messages.size)
-            }
+            coroutineScope.launch { listState.scrollToItem(messages.size) }
         }
     }
 
@@ -128,27 +132,26 @@ fun ChatScreen(
                 currentModel = currentModel,
                 listState = listState,
                 inputText = inputText,
+                pendingImageUrls = pendingImageUrls,
                 onInputChange = { inputText = it },
                 onSend = {
-                    if (inputText.isNotBlank()) {
+                    if (inputText.isNotBlank() || pendingImageUrls.isNotEmpty()) {
                         chatViewModel.sendMessage(inputText.trim())
                         inputText = ""
                     }
                 },
                 onStop = { chatViewModel.stopGeneration() },
                 onMenuClick = { drawerOpen = true },
-                onModelClick = { showModelSelector = true }
+                onModelClick = { showModelSelector = true },
+                onAddImage = { imagePicker.pickImages(maxItems = 9) },
+                onRemoveImage = { chatViewModel.removeImageUrl(it) }
             )
             Surface(
                 color = Color.Black.copy(alpha = 0.4f),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { drawerOpen = false }
+                modifier = Modifier.fillMaxSize().clickable { drawerOpen = false }
             ) {}
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.78f)
-                    .fillMaxSize(),
+                modifier = Modifier.fillMaxWidth(0.78f).fillMaxSize(),
                 color = MaterialTheme.colorScheme.surface
             ) {
                 ConversationDrawer(
@@ -185,45 +188,37 @@ fun ChatScreen(
             currentModel = currentModel,
             listState = listState,
             inputText = inputText,
+            pendingImageUrls = pendingImageUrls,
             onInputChange = { inputText = it },
             onSend = {
-                if (inputText.isNotBlank()) {
+                if (inputText.isNotBlank() || pendingImageUrls.isNotEmpty()) {
                     chatViewModel.sendMessage(inputText.trim())
                     inputText = ""
                 }
             },
             onStop = { chatViewModel.stopGeneration() },
             onMenuClick = { drawerOpen = true },
-            onModelClick = { showModelSelector = true }
+            onModelClick = { showModelSelector = true },
+            onAddImage = { imagePicker.pickImages(maxItems = 9) },
+            onRemoveImage = { chatViewModel.removeImageUrl(it) }
         )
     }
 
     if (showModelSelector) {
         Surface(
             color = Color.Black.copy(alpha = 0.4f),
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable { showModelSelector = false }
+            modifier = Modifier.fillMaxSize().clickable { showModelSelector = false }
         ) {
             Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxSize()) {
                 Surface(
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                     color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = false) { }
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("选择模型", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp))
-                        // 显示用户在全屏幕选择器中已勾选的模型
                         if (quickModels.size == 1 && quickModels[0] == currentModel) {
-                            // 还没有选过模型 → 提示用户去全屏幕选择器中选择
-                            Text(
-                                "尚未选择常用模型，点击下方按钮前往选择。",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
+                            Text("尚未选择常用模型，点击下方按钮前往选择。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
                         }
                         quickModels.forEach { id ->
                             val selected = currentModel == id
@@ -231,50 +226,27 @@ fun ChatScreen(
                                 onClick = { chatViewModel.setModel(id); showModelSelector = false },
                                 color = if (selected) Primary else MaterialTheme.colorScheme.surfaceVariant,
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                             ) {
-                                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                    Text(
-                                        friendlyModelName(id),
-                                        color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(16.dp).weight(1f),
-                                        fontSize = 13.sp
-                                    )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(friendlyModelName(id), color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(16.dp).weight(1f), fontSize = 13.sp)
                                     if (selected) {
-                                        androidx.compose.material3.Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.padding(end = 12.dp)
-                                        )
+                                        androidx.compose.material3.Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.padding(end = 12.dp))
                                     }
                                 }
                             }
                         }
-                        // "更多模型" 入口 —— 跳转到全屏幕选择器
                         Spacer(Modifier.height(12.dp))
                         Surface(
                             onClick = { showModelSelector = false; onNavigateToModelPicker() },
                             color = MaterialTheme.colorScheme.surface,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp, MaterialTheme.colorScheme.outlineVariant
-                            )
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
-                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                androidx.compose.material3.Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = null,
-                                    tint = Primary,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                                Text("选择更多模型 (搜索 / 多选)",
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.weight(1f))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Primary, modifier = Modifier.padding(16.dp))
+                                Text("选择更多模型 (搜索 / 多选)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -287,19 +259,23 @@ fun ChatScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainChatContent(
-    messages: List<com.example.aichat.data.model.Message>,
-    streamingText: String?,        // 非 null 则渲染一个"正在打字"的气泡
+    messages: List<Message>,
+    streamingText: String?,
     isGenerating: Boolean,
     currentModel: String,
     listState: androidx.compose.foundation.lazy.LazyListState,
     inputText: String,
+    pendingImageUrls: List<String>,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
     onMenuClick: () -> Unit,
-    onModelClick: () -> Unit
+    onModelClick: () -> Unit,
+    onAddImage: () -> Unit,
+    onRemoveImage: (String) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val chatViewModel: ChatViewModel = hiltViewModel()
 
     Scaffold(
         topBar = {
@@ -317,43 +293,31 @@ private fun MainChatContent(
                 currentModel = currentModel,
                 jsonMode = chatViewModel.jsonMode.collectAsState().value,
                 onToggleJsonMode = { chatViewModel.toggleJsonMode() },
-                pendingImageUrls = chatViewModel.pendingImageUrls.collectAsState().value,
-                onRemoveImage = { chatViewModel.removeImageUrl(it) },
+                pendingImageUrls = pendingImageUrls,
+                onRemoveImage = onRemoveImage,
                 onSend = onSend,
                 onStop = onStop,
                 onModelClick = onModelClick,
-                onAddImage = {
-                    // 占位：真实实现用 ActivityResultLauncher 打开相册；这里用演示 URL
-                    val demoUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Collage_of_Nine_Dogs.jpg/800px-Collage_of_Nine_Dogs.jpg"
-                    chatViewModel.addImageUrl(demoUrl)
-                }
+                onAddImage = onAddImage
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            if (messages.isEmpty() && streamingText == null) {
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty()) {
                 EmptyState(onExampleClick = { example -> onInputChange(example); onSend() })
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // 历史消息（稳定列表，token 到达时不触发这里的重组）
-                    items(
-                        items = messages,
-                        key = { msg -> msg.id.takeIf { it != 0L } ?: (msg.timestamp.toString() + msg.role + msg.content.hashCode()) }
-                    ) { msg ->
-                        MessageBubble(content = msg.content, isUser = msg.role == "user")
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    items(items = messages, key = { msg -> msg.id.takeIf { it != 0L } ?: (msg.timestamp.toString() + msg.role + msg.content.hashCode()) }) { msg ->
+                        MessageBubble(
+                            content = msg.content,
+                            isUser = msg.role == "user",
+                            imageUrls = msg.imageUrlList()
+                        )
                     }
-                    // 流式气泡：单独渲染一个 Composable，只响应 streamingText 的变化
                     if (streamingText != null) {
                         item(contentType = "streaming") {
-                            MessageBubble(content = streamingText, isUser = false, isStreaming = true)
+                            MessageBubble(content = streamingText!!, isUser = false, isStreaming = true)
                         }
                     }
                 }
@@ -380,46 +344,21 @@ private fun ChatInputBar(
     Column {
         Divider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
 
-        // —— 顶部工具条：模型切换 + JSON 开关 + 图片附件
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                onClick = onModelClick,
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.padding(end = 4.dp)
-            ) {
-                Text(
-                    friendlyModelName(currentModel),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    fontSize = 13.sp
-                )
+            // —— 模型切换按钮
+            Surface(onClick = onModelClick, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.padding(end = 4.dp)) {
+                Text(friendlyModelName(currentModel), modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 13.sp)
             }
-            // JSON 模式切换
-            Surface(
-                onClick = onToggleJsonMode,
-                shape = RoundedCornerShape(18.dp),
-                color = if (jsonMode) Primary else MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Text(
-                    text = if (jsonMode) "{ } JSON" else "文本",
-                    color = if (jsonMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
-                )
+            // —— JSON 模式切换
+            Surface(onClick = onToggleJsonMode, shape = RoundedCornerShape(18.dp), color = if (jsonMode) Primary else MaterialTheme.colorScheme.surfaceVariant) {
+                Text(text = if (jsonMode) "{ } JSON" else "文本", color = if (jsonMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
-            // 添加图片按钮
-            Surface(
-                onClick = onAddImage,
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
+            // —— 添加图片按钮
+            Surface(onClick = onAddImage, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                 Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("+", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(4.dp))
@@ -428,37 +367,28 @@ private fun ChatInputBar(
             }
         }
 
-        // —— 已选图片预览（小缩略图）
+        // —— 已选图片缩略图预览
         if (pendingImageUrls.isNotEmpty()) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                pendingImageUrls.take(4).forEach { url ->
-                    Box(
-                        modifier = Modifier.size(64.dp)
-                    ) {
-                        // 占位方块（实际项目用 Coil/Glide 加载真实图片）
+                pendingImageUrls.take(6).forEach { url ->
+                    Box(modifier = Modifier.size(64.dp)) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.matchParentSize()
                         ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("🖼️", fontSize = 20.sp)
-                            }
+                            AsyncImage(
+                                model = Uri.parse(url),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)),
+                                contentScale = ContentScale.Crop
+                            )
                         }
                         // 右上角关闭按钮
-                        Surface(
-                            onClick = { onRemoveImage(url) },
-                            shape = CircleShape,
-                            color = Color(0xFF666666),
-                            modifier = Modifier
-                                .size(18.dp)
-                                .align(Alignment.TopEnd)
-                        ) {
+                        Surface(onClick = { onRemoveImage(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(18.dp).align(Alignment.TopEnd)) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -468,26 +398,12 @@ private fun ChatInputBar(
             }
         }
 
-        // —— 文本输入行
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = inputText,
                 onValueChange = onInputChange,
-                placeholder = {
-                    Text(
-                        text = if (jsonMode) "请输入，回复将为 JSON..." else "输入消息...",
-                        fontSize = 14.sp
-                    )
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 12.dp)
-                    .height(56.dp),
+                placeholder = { Text(text = if (jsonMode) "请输入，回复将为 JSON..." else if (pendingImageUrls.isNotEmpty()) "描述这些图片..." else "输入消息...", fontSize = 14.sp) },
+                modifier = Modifier.weight(1f).padding(end = 12.dp).height(56.dp),
                 shape = RoundedCornerShape(22.dp),
                 maxLines = 4
             )
@@ -511,27 +427,12 @@ private fun ChatInputBar(
 
 @Composable
 private fun EmptyState(onExampleClick: (String) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("✨ AI 助手", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 24.dp))
         Text("输入消息开始对话，或试试这些示例：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 24.dp))
-        val examples = listOf(
-            "帮我写一个 Kotlin 协程的例子",
-            "用简单的方式解释 Transformer 架构",
-            "写一首关于夏日的短诗"
-        )
+        val examples = listOf("帮我写一个 Kotlin 协程的例子", "用简单的方式解释 Transformer 架构", "写一首关于夏日的短诗")
         examples.forEach { example ->
-            Surface(
-                onClick = { onExampleClick(example) },
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
-            ) {
+            Surface(onClick = { onExampleClick(example) }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Text(example, modifier = Modifier.padding(16.dp), fontSize = 14.sp)
             }
         }
@@ -559,11 +460,7 @@ private fun ConversationDrawer(
             items(conversations, key = { it.id }) { conv ->
                 val isActive = conv.id == activeConversationId
                 val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
-                Surface(
-                    onClick = { onSelect(conv.id) },
-                    color = bgColor,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Surface(onClick = { onSelect(conv.id) }, color = bgColor, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(conv.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                         Text(formatTime(conv.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
@@ -597,12 +494,6 @@ private fun formatTime(timestamp: Long): String {
     }
 }
 
-/**
- * 将内部模型名转为用户友好的显示名。例如：
- *   "nvidia/nemotron-nano-12b-v2-vl" → "Nemotron Nano 12B (VL)"
- *   "deepseek-chat" → "DeepSeek Chat"
- *   未知模型名原样返回。
- */
 private fun friendlyModelName(model: String): String = when {
     model == "nvidia/nemotron-nano-12b-v2-vl" -> "Nemotron Nano 12B"
     model == "nvidia/nemotron-4-340b-instruct" -> "Nemotron 4 340B"
