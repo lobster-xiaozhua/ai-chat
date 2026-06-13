@@ -46,8 +46,12 @@ fun MessageBubble(
                 if (content.isEmpty()) {
                     // 光标占位 —— 流式开始但第一个 token 尚未到达
                     Text("…", color = textColor.copy(alpha = 0.4f))
+                } else if (isStreaming) {
+                    // 流式：双段冻结渲染 —— 解决"越往后越慢"
+                    StreamingText(text = content, isStreaming = true, textColor = textColor)
                 } else {
-                    MarkdownRenderer(content, textColor, isStreaming = isStreaming)
+                    // 完成态：Markdown + 选中支持
+                    MarkdownRenderer(content, textColor, isStreaming = false)
                 }
             }
         }
