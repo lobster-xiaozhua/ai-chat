@@ -1,12 +1,9 @@
 package com.example.aichat.ui.chat
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -23,6 +20,7 @@ fun MessageBubble(
     content: String,
     isUser: Boolean,
     modifier: Modifier = Modifier,
+    isStreaming: Boolean = false,
     onLongClick: () -> Unit = {}
 ) {
     Row(
@@ -42,11 +40,15 @@ fun MessageBubble(
                 bottomStart = if (isUser) 20.dp else 6.dp,
                 bottomEnd = if (isUser) 6.dp else 20.dp
             ),
-            modifier = Modifier
-                .fillMaxWidth(0.82f)
+            modifier = Modifier.fillMaxWidth(0.82f)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                MarkdownRenderer(content, textColor)
+                if (content.isEmpty()) {
+                    // 光标占位 —— 流式开始但第一个 token 尚未到达
+                    Text("…", color = textColor.copy(alpha = 0.4f))
+                } else {
+                    MarkdownRenderer(content, textColor, isStreaming = isStreaming)
+                }
             }
         }
     }

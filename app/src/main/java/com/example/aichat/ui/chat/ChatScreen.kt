@@ -1,9 +1,5 @@
 package com.example.aichat.ui.chat
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -67,18 +63,19 @@ fun ChatScreen(
     val chatViewModel: ChatViewModel = hiltViewModel()
     val conversationListViewModel: ConversationListViewModel = hiltViewModel()
 
+    // 历史消息 —— 只有在新增完整消息时才变化
     val messages by chatViewModel.messages.collectAsState()
     val isGenerating by chatViewModel.isGenerating.collectAsState()
     val error by chatViewModel.error.collectAsState()
     val currentModel by chatViewModel.currentModel.collectAsState()
+    // 正在生成的内容 —— 每 token 变化，单独渲染为一个气泡
+    val streamingText by chatViewModel.streamingAssistant.collectAsState()
     val conversations by conversationListViewModel.conversations.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var drawerOpen by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
-    var activeConversationId by remember {
-        mutableStateOf<String?>(null)
-    }
+    var activeConversationId by remember { mutableStateOf<String?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
@@ -91,9 +88,15 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+    // 自动滚动：仅在消息数量变化或流式文本变化时触发，避免重复动画
+    LaunchedEffect(messages.size, streamingText) {
+        val hasContent = messages.isNotEmpty() || streamingText != null
+        if (hasContent) {
+            coroutineScope.launch {
+                val extra = if (streamingText != null) 1 else 0
+                val index = (messages.size + extra - 1).coerceAtLeast(0)
+                listState.animateScrollToItem(index)
+            }
         }
     }
 
@@ -103,13 +106,13 @@ fun ChatScreen(
     }
 
     if (drawerOpen) {
-        // 侧边栏遮罩 + 抽屉
         Box(modifier = Modifier.fillMaxSize()) {
-            // 主内容
             MainChatContent(
                 messages = messages,
+                streamingText = streamingText,
                 isGenerating = isGenerating,
                 currentModel = currentModel,
+                listState = listState,
                 inputText = inputText,
                 onInputChange = { inputText = it },
                 onSend = {
@@ -122,16 +125,12 @@ fun ChatScreen(
                 onMenuClick = { drawerOpen = true },
                 onModelClick = { showModelSelector = true }
             )
-
-            // 遮罩层
             Surface(
                 color = Color.Black.copy(alpha = 0.4f),
                 modifier = Modifier
                     .fillMaxSize()
                     .clickable { drawerOpen = false }
             ) {}
-
-            // 侧边栏
             Surface(
                 modifier = Modifier
                     .fillMaxWidth(0.78f)
@@ -151,9 +150,7 @@ fun ChatScreen(
                         chatViewModel.setConversation(activeConversationId!!)
                         drawerOpen = false
                     },
-                    onRename = { id, title ->
-                        conversationListViewModel.renameConversation(id, title)
-                    },
+                    onRename = { id, title -> conversationListViewModel.renameConversation(id, title) },
                     onDelete = { id ->
                         conversationListViewModel.deleteConversation(id)
                         if (activeConversationId == id) {
@@ -161,22 +158,18 @@ fun ChatScreen(
                             chatViewModel.setConversation(activeConversationId!!)
                         }
                     },
-                    onNavigateToAccount = {
-                        drawerOpen = false
-                        onNavigateToAccount()
-                    },
-                    onNavigateToSettings = {
-                        drawerOpen = false
-                        onNavigateToSettings()
-                    }
+                    onNavigateToAccount = { drawerOpen = false; onNavigateToAccount() },
+                    onNavigateToSettings = { drawerOpen = false; onNavigateToSettings() }
                 )
             }
         }
     } else {
         MainChatContent(
             messages = messages,
+            streamingText = streamingText,
             isGenerating = isGenerating,
             currentModel = currentModel,
+            listState = listState,
             inputText = inputText,
             onInputChange = { inputText = it },
             onSend = {
@@ -191,7 +184,6 @@ fun ChatScreen(
         )
     }
 
-    // 模型选择弹窗
     if (showModelSelector) {
         Surface(
             color = Color.Black.copy(alpha = 0.4f),
@@ -199,10 +191,7 @@ fun ChatScreen(
                 .fillMaxSize()
                 .clickable { showModelSelector = false }
         ) {
-            Box(
-                contentAlignment = Alignment.BottomCenter,
-                modifier = Modifier.fillMaxSize()
-            ) {
+            Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxSize()) {
                 Surface(
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                     color = MaterialTheme.colorScheme.surface,
@@ -211,11 +200,7 @@ fun ChatScreen(
                         .clickable(enabled = false) { }
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "选择模型",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
+                        Text("选择模型", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
                         listOf(
                             "deepseek-chat" to "DeepSeek Chat",
                             "deepseek-coder" to "DeepSeek Coder",
@@ -223,21 +208,14 @@ fun ChatScreen(
                         ).forEach { (id, name) ->
                             val selected = currentModel == id
                             Surface(
-                                onClick = {
-                                    chatViewModel.setModel(id)
-                                    showModelSelector = false
-                                },
+                                onClick = { chatViewModel.setModel(id); showModelSelector = false },
                                 color = if (selected) Primary else MaterialTheme.colorScheme.surfaceVariant,
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
                             ) {
-                                Text(
-                                    name,
-                                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(16.dp)
-                                )
+                                Text(name, color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(16.dp))
                             }
                         }
                     }
@@ -251,8 +229,10 @@ fun ChatScreen(
 @Composable
 private fun MainChatContent(
     messages: List<com.example.aichat.data.model.Message>,
+    streamingText: String?,        // 非 null 则渲染一个"正在打字"的气泡
     isGenerating: Boolean,
     currentModel: String,
+    listState: androidx.compose.foundation.lazy.LazyListState,
     inputText: String,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -266,26 +246,12 @@ private fun MainChatContent(
         topBar = {
             TopAppBar(
                 title = { Text("新对话", style = MaterialTheme.typography.titleMedium) },
-                navigationIcon = {
-                    IconButton(onClick = onMenuClick) {
-                        Icon(Icons.Default.Menu, contentDescription = "菜单")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                navigationIcon = { IconButton(onClick = onMenuClick) { Icon(Icons.Default.Menu, contentDescription = "菜单") } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
         bottomBar = {
-            ChatInputBar(
-                inputText = inputText,
-                onInputChange = onInputChange,
-                isGenerating = isGenerating,
-                currentModel = currentModel,
-                onSend = onSend,
-                onStop = onStop,
-                onModelClick = onModelClick
-            )
+            ChatInputBar(inputText, onInputChange, isGenerating, currentModel, onSend, onStop, onModelClick)
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
@@ -294,24 +260,24 @@ private fun MainChatContent(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (messages.isEmpty()) {
-                EmptyState(onExampleClick = { example ->
-                    onInputChange(example)
-                    onSend()
-                })
+            if (messages.isEmpty() && streamingText == null) {
+                EmptyState(onExampleClick = { example -> onInputChange(example); onSend() })
             } else {
                 LazyColumn(
-                    state = rememberLazyListState(),
+                    state = listState,
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(messages) { msg ->
-                        val isUser = msg.role == "user"
-                        MessageBubble(
-                            content = msg.content,
-                            isUser = isUser
-                        )
-                        if (isGenerating && msg == messages.last() && !isUser) {
-                            BlinkingCursor()
+                    // 历史消息（稳定列表，token 到达时不触发这里的重组）
+                    items(
+                        items = messages,
+                        key = { msg -> msg.id.takeIf { it != 0L } ?: (msg.timestamp.toString() + msg.role + msg.content.hashCode()) }
+                    ) { msg ->
+                        MessageBubble(content = msg.content, isUser = msg.role == "user")
+                    }
+                    // 流式气泡：单独渲染一个 Composable，只响应 streamingText 的变化
+                    if (streamingText != null) {
+                        item(contentType = "streaming") {
+                            MessageBubble(content = streamingText, isUser = false, isStreaming = true)
                         }
                     }
                 }
@@ -332,7 +298,6 @@ private fun ChatInputBar(
 ) {
     Column {
         Divider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
-        // 工具栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -345,14 +310,9 @@ private fun ChatInputBar(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.padding(end = 4.dp)
             ) {
-                Text(
-                    currentModel,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    fontSize = 13.sp
-                )
+                Text(currentModel, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 13.sp)
             }
         }
-        // 输入区
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -376,17 +336,9 @@ private fun ChatInputBar(
                 color = if (isGenerating) Color(0xFFD32F2F) else Primary,
                 modifier = Modifier.size(40.dp)
             ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     if (isGenerating) {
-                        Icon(
-                            Icons.Default.Stop,
-                            contentDescription = "停止",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Default.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(18.dp))
                     } else {
                         Text("→", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
@@ -405,17 +357,8 @@ private fun EmptyState(onExampleClick: (String) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            "✨ AI 助手",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
-        Text(
-            "输入消息开始对话，或试试这些示例：",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
+        Text("✨ AI 助手", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 24.dp))
+        Text("输入消息开始对话，或试试这些示例：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 24.dp))
         val examples = listOf(
             "帮我写一个 Kotlin 协程的例子",
             "用简单的方式解释 Transformer 架构",
@@ -426,23 +369,12 @@ private fun EmptyState(onExampleClick: (String) -> Unit) {
                 onClick = { onExampleClick(example) },
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
             ) {
-                Text(
-                    example,
-                    modifier = Modifier.padding(16.dp),
-                    fontSize = 14.sp
-                )
+                Text(example, modifier = Modifier.padding(16.dp), fontSize = 14.sp)
             }
         }
     }
-}
-
-@Composable
-private fun BlinkingCursor() {
-    // 简单的光标效果，通过文字添加
 }
 
 @Composable
@@ -457,24 +389,13 @@ private fun ConversationDrawer(
     onNavigateToSettings: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("历史对话", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = onNewChat) {
-                Icon(Icons.Default.Add, contentDescription = "新建对话", tint = Primary)
-            }
+            IconButton(onClick = onNewChat) { Icon(Icons.Default.Add, contentDescription = "新建对话", tint = Primary) }
         }
-
         Divider(color = MaterialTheme.colorScheme.surfaceVariant)
-
-        LazyColumn(
-            modifier = Modifier.weight(1f)
-        ) {
-            items(conversations) { conv ->
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(conversations, key = { it.id }) { conv ->
                 val isActive = conv.id == activeConversationId
                 val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
                 Surface(
@@ -483,51 +404,22 @@ private fun ConversationDrawer(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            conv.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1
-                        )
-                        Text(
-                            formatTime(conv.updatedAt),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
+                        Text(conv.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                        Text(formatTime(conv.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
                     }
                 }
             }
         }
-
         Divider(color = MaterialTheme.colorScheme.surfaceVariant)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToAccount() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = Primary,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("U", color = Color.White, fontWeight = FontWeight.Bold)
-                }
+        Row(modifier = Modifier.fillMaxWidth().clickable { onNavigateToAccount() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = CircleShape, color = Primary, modifier = Modifier.size(36.dp)) {
+                Box(contentAlignment = Alignment.Center) { Text("U", color = Color.White, fontWeight = FontWeight.Bold) }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text("账号中心", modifier = Modifier.weight(1f))
             Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onNavigateToSettings() }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().clickable { onNavigateToSettings() }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("设置", modifier = Modifier.weight(1f))
             Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
