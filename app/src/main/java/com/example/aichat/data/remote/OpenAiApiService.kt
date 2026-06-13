@@ -5,7 +5,7 @@ import retrofit2.http.Body
 import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Streaming
-import retrofit2.http.Url
+import retrofit2.Call
 
 interface OpenAiApiService {
 
@@ -15,5 +15,5 @@ interface OpenAiApiService {
         @retrofit2.http.Url url: String,
         @Header("Authorization") auth: String,
         @Body body: com.example.aichat.data.remote.dto.ChatCompletionRequest
-    ): retrofit2.Response<ResponseBody>
+    ): Call<ResponseBody>
 }

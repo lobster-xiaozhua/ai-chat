@@ -31,8 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.aichat.ui.theme.Primary
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +47,20 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
     var baseUrl by remember { mutableStateOf(currentBaseUrl) }
     var modelName by remember { mutableStateOf(currentModel) }
     var apiKey by remember { mutableStateOf(currentKey) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    fun validate(): Boolean {
+        val url = baseUrl.trim().lowercase(Locale.ROOT)
+        errorMsg = when {
+            url.isEmpty() -> "请填写 API 地址"
+            !(url.startsWith("http://") || url.startsWith("https://")) ->
+                "API 地址必须以 http:// 或 https:// 开头"
+            modelName.isBlank() -> "请填写模型名称"
+            apiKey.isBlank() -> "请填写 API Key"
+            else -> null
+        }
+        return errorMsg == null
+    }
 
     Scaffold(
         topBar = {
@@ -75,7 +91,8 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                 label = { Text("API 地址") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                placeholder = { Text("https://api.deepseek.com", color = Color.Gray) }
+                placeholder = { Text("https://api.deepseek.com", color = Color.Gray) },
+                isError = errorMsg != null
             )
             OutlinedTextField(
                 value = modelName,
@@ -94,13 +111,25 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                 visualTransformation = PasswordVisualTransformation()
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            errorMsg?.let {
+                Text(
+                    text = it,
+                    color = Color(0xFFD32F2F),
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Surface(
                 onClick = {
-                    viewModel.setBaseUrl(baseUrl)
-                    viewModel.setDefaultModel(modelName)
-                    viewModel.setApiKey(apiKey)
+                    if (!validate()) return@Surface
+                    viewModel.setBaseUrl(baseUrl.trim())
+                    viewModel.setDefaultModel(modelName.trim())
+                    viewModel.setApiKey(apiKey.trim())
                     onBack()
                 },
                 shape = RoundedCornerShape(22.dp),

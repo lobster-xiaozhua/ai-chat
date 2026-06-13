@@ -38,6 +38,12 @@ class ChatRepository @Inject constructor(
     fun getMessages(conversationId: String): androidx.paging.PagingSource<Int, Message> =
         messageDao.getMessages(conversationId)
 
+    fun getMessagesFlow(conversationId: String): kotlinx.coroutines.flow.Flow<List<Message>> =
+        messageDao.getMessagesFlow(conversationId)
+
+    suspend fun getMessagesAsList(conversationId: String): List<Message> =
+        messageDao.getMessagesAsList(conversationId)
+
     suspend fun insertMessage(message: Message): Long {
         return messageDao.insert(message)
     }

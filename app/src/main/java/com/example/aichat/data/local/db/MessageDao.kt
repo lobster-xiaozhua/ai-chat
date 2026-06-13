@@ -13,6 +13,12 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
     fun getMessages(conversationId: String): PagingSource<Int, Message>
 
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
+    fun getMessagesFlow(conversationId: String): kotlinx.coroutines.flow.Flow<List<Message>>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
+    suspend fun getMessagesAsList(conversationId: String): List<Message>
+
     @Insert
     suspend fun insert(message: Message): Long
 
