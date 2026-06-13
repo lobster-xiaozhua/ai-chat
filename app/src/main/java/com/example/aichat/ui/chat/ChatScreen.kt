@@ -88,14 +88,20 @@ fun ChatScreen(
         }
     }
 
-    // 自动滚动：仅在消息数量变化或流式文本变化时触发，避免重复动画
-    LaunchedEffect(messages.size, streamingText) {
-        val hasContent = messages.isNotEmpty() || streamingText != null
-        if (hasContent) {
+    // 自动滚动：流式期间用 scrollToItem（不触发动画状态机），仅在完整消息增加时才用动画。
+    // 每 50ms 的高频更新下，animateScrollToItem 会反复被取消/重启，徒增 CPU。
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
             coroutineScope.launch {
-                val extra = if (streamingText != null) 1 else 0
-                val index = (messages.size + extra - 1).coerceAtLeast(0)
-                listState.animateScrollToItem(index)
+                listState.animateScrollToItem(messages.size - 1)
+            }
+        }
+    }
+    LaunchedEffect(streamingText) {
+        if (streamingText != null) {
+            // 流式气泡位于最后一项：messages.size（因为它在 LazyColumn 的 items 之后）
+            coroutineScope.launch {
+                listState.scrollToItem(messages.size)
             }
         }
     }

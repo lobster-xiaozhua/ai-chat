@@ -115,6 +115,13 @@ class ChatViewModel @Inject constructor(
 
         generationJob = viewModelScope.launch {
             val builder = StringBuilder(2048)  // 预分配，避免反复扩容
+            // —— 节流控制：每 50ms 或每 3 个 token 才向 UI emit 一次文本。
+            //    builder 仍然收集每个 token，最终内容不会丢失。
+            //    这样 UI 的 Paragraph.layout / 重组调用减少约 2/3。
+            var lastEmitNs = 0L
+            var tokensSinceEmit = 0
+            val throttleNs = 50_000_000L      // 50 ms
+            val throttleMaxTokens = 3
 
             try {
                 val apiKey = settingsRepository.getApiKey()
@@ -132,13 +139,19 @@ class ChatViewModel @Inject constructor(
                     temperature = temperature
                 ).collect { token ->
                     builder.append(token)
-                    // 只改这一个 String，Compose 只重组流式气泡的 Text
-                    _streamingAssistant.value = builder.toString()
+                    tokensSinceEmit++
+                    val now = System.nanoTime()
+                    if (now - lastEmitNs > throttleNs || tokensSinceEmit >= throttleMaxTokens) {
+                        _streamingAssistant.value = builder.toString()
+                        lastEmitNs = now
+                        tokensSinceEmit = 0
+                    }
                 }
 
-                // 3. 完成 —— 写 DB + 加入历史消息列表（一次性，之后所有 token 都不再触发 LazyColumn diff）
+                // 3. 完成 —— flush 最后一批（可能有 1-2 个未 emit 的 token），然后写入历史 / DB
                 val finalContent = builder.toString()
                 if (finalContent.isNotEmpty()) {
+                    _streamingAssistant.value = finalContent   // 保证用户最后一眼看到完整文本
                     val finalMsg = Message(
                         conversationId = currentConversationId,
                         role = "assistant",
@@ -151,12 +164,15 @@ class ChatViewModel @Inject constructor(
                 }
 
             } catch (e: ApiException) {
+                // 错误：与原代码行为一致 —— 不向 UI emit 部分文本，直接消失气泡。
+                // 用户通过 _error Toast 感知失败。
                 _error.value = e.message ?: "发生错误"
                 historyForApi.removeLastOrNull()  // 回滚刚才的 user
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // 用户主动停止生成：若已有内容则保留为一条完整消息
+                // 用户主动停止生成：保留已到达的所有内容作为一条完整消息
                 val partial = builder.toString()
                 if (partial.isNotEmpty()) {
+                    _streamingAssistant.value = partial   // flush，保证用户立即看到完整文本
                     val finalMsg = Message(
                         conversationId = currentConversationId,
                         role = "assistant",
@@ -171,6 +187,7 @@ class ChatViewModel @Inject constructor(
                 }
                 throw e
             } catch (e: Exception) {
+                // 未知错误：与原代码行为一致 —— 不 emit 部分文本，仅显示错误。
                 _error.value = "消息生成失败：${e.message}"
                 historyForApi.removeLastOrNull()
             } finally {

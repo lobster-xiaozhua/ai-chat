@@ -62,31 +62,34 @@ fun ParagraphStreamingText(
 
     // —— 流式态：计算段落边界 ——
     // boundaries[i] = 第 i 段的结束位置（exclusive）。
-    // 第 0 段是隐含的起点（0）。最后一段 = 活跃尾部的起点。
-    // 注意：substring 的结果每次重组都是新 String 对象，但内容相同 →
-    //       Compose 用 String.equals 比较，内容相同 → skip Composable。
+    // 注意：basicText 在 Compose 中测量文本时会缓存字形（glyph），
+    // 但如果每次都给它一个新字符串 + 新 Paragraph，缓存会失效。
+    // 我们的策略：把大文本切成「已冻结段落」（内容不变 → Compose skip 重组/布局）
+    // +「活跃尾部」（短文本，每 token 重布局但代价恒定 ≈ O(250)）。
     val boundaries = rememberParagraphBoundaries(text)
     val count = boundaries.size
 
-    SelectionContainer {
-        androidx.compose.foundation.layout.Column {
-            // 已完成段落：每个 paragraph 被一个稳定 key(idx) 标识
-            for (i in 0 until count - 1) {
-                val start = boundaries[i]
-                val end = boundaries[i + 1]
-                androidx.compose.runtime.key(i) {
-                    FrozenParagraph(
-                        text = text.substring(start, end),
-                        color = textColor,
-                        modifier = modifier
-                    )
-                }
+    // 流式态：有意不使用 SelectionContainer。
+    // 用户在"正在打字"时不会去长按选中；SelectionContainer 每 token 都要
+    // 重建字符 hit-testing 信息，纯浪费 CPU。完成态在 MarkdownRenderer
+    // 中提供 SelectionContainer。
+    androidx.compose.foundation.layout.Column {
+        // 已完成段落：每个 paragraph 被一个稳定 key(idx) 标识
+        for (i in 0 until count - 1) {
+            val start = boundaries[i]
+            val end = boundaries[i + 1]
+            androidx.compose.runtime.key(i) {
+                FrozenParagraph(
+                    text = text.substring(start, end),
+                    color = textColor,
+                    modifier = modifier
+                )
             }
-            // 活跃尾部：长度 ≤ ACTIVE_MAX_CHARS，唯一参与 layout 的部分
-            val tail = text.substring(boundaries[count - 1])
-            if (tail.isNotEmpty()) {
-                ActiveParagraph(text = tail, color = textColor, modifier = modifier)
-            }
+        }
+        // 活跃尾部：长度 ≤ ACTIVE_MAX_CHARS，唯一参与 layout 的部分
+        val tail = text.substring(boundaries[count - 1])
+        if (tail.isNotEmpty()) {
+            ActiveParagraph(text = tail, color = textColor, modifier = modifier)
         }
     }
 }
