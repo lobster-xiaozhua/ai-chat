@@ -15,6 +15,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/* ======================================================================
+ * 聊天界面的状态与逻辑中枢
+ * ======================================================================
+ * 暴露的 StateFlow：
+ *   messages            → 已完成的历史消息
+ *   streamingAssistant  → 当前正在生成的 assistant 文本（逐 token 更新）
+ *   isGenerating        → 是否正在生成
+ *   error               → 错误信息（UI 层用 Snackbar 展示）
+ *   currentModel        → 当前选择的模型名
+ *   selectedModelIds    → 在 ModelPicker 中勾选的常用模型列表
+ *   jsonMode            → 是否启用 JSON 输出模式（切换开关）
+ *   pendingImageUrls    → 用户刚选择的图片 URL（多模态输入用，发送后清空）
+ * ====================================================================== */
+
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
@@ -22,12 +36,10 @@ class ChatViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
-    // —————————— UI state ——————————
-    // 仅包含"已完成"的历史消息 —— 不随流式 token 变化
+    /* ---------- 状态 ---------- */
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
-    // 正在流式生成的 assistant 内容 —— 只由一条气泡读取，每 token 只更新这一个 String
     private val _streamingAssistant = MutableStateFlow<String?>(null)
     val streamingAssistant: StateFlow<String?> = _streamingAssistant.asStateFlow()
 
@@ -40,10 +52,16 @@ class ChatViewModel @Inject constructor(
     private val _currentModel = MutableStateFlow("deepseek-chat")
     val currentModel: StateFlow<String> = _currentModel.asStateFlow()
 
+    private val _jsonMode = MutableStateFlow(false)
+    val jsonMode: StateFlow<Boolean> = _jsonMode.asStateFlow()
+
+    // 待发送的图片附件（多模态输入），sendMessage 后自动清空
+    private val _pendingImageUrls = MutableStateFlow<List<String>>(emptyList())
+    val pendingImageUrls: StateFlow<List<String>> = _pendingImageUrls.asStateFlow()
+
     private val _selectedModelIds = MutableStateFlow(emptyList<String>())
     val selectedModelIds: StateFlow<List<String>> = _selectedModelIds.asStateFlow()
 
-    // —————————— 缓存的设置值（从 DataStore 异步收集，提供同步访问）——————————
     private val _baseUrl = MutableStateFlow("https://api.deepseek.com")
     private val _temperatureStr = MutableStateFlow("1.0")
     private val _systemPrompt = MutableStateFlow("")
@@ -52,6 +70,7 @@ class ChatViewModel @Inject constructor(
     private var currentConversationId: String = ""
     private var historyForApi = mutableListOf<Pair<String, String>>()
 
+    /* ---------- 初始化：从 DataStore 异步加载设置 ---------- */
     init {
         viewModelScope.launch {
             settingsRepository.getBaseUrl().collect { if (it.isNotBlank()) _baseUrl.value = it }
@@ -70,15 +89,30 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 切换到指定会话：从数据库加载历史消息并重建 API 上下文。
-     */
+    /* ---------- 对外操作 ---------- */
+
+    fun setJsonMode(on: Boolean) { _jsonMode.value = on }
+    fun toggleJsonMode() { _jsonMode.value = !_jsonMode.value }
+
+    fun addImageUrl(url: String) {
+        _pendingImageUrls.value = _pendingImageUrls.value + url
+    }
+
+    fun removeImageUrl(url: String) {
+        _pendingImageUrls.value = _pendingImageUrls.value - url
+    }
+
+    fun clearPendingImages() {
+        _pendingImageUrls.value = emptyList()
+    }
+
     fun setConversation(conversationId: String) {
         if (currentConversationId == conversationId && _messages.value.isNotEmpty()) return
         currentConversationId = conversationId
         generationJob?.cancel()
         _isGenerating.value = false
         _streamingAssistant.value = null
+        _pendingImageUrls.value = emptyList()
 
         viewModelScope.launch {
             val history = chatRepository.getMessagesAsList(conversationId)
@@ -91,15 +125,16 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 发送消息。关键路径：
-     *   1. 用户消息立即进列表 + 写 DB
-     *   2. 设置 _streamingAssistant = "" 触发占位气泡
-     *   3. 流式接口逐 token 写 StringBuilder，每到达一个 token 就把整个字符串 toString() 一次
-     *      emit 给 _streamingAssistant（String 不可变，Compose 只重组一个气泡）
-     *   4. 完成后：一次性将 assistant 消息加入 _messages，写 DB，并清空 _streamingAssistant
+     * 发送消息：
+     *   1. 用户消息（文本 + 可选图片）立即写入列表
+     *   2. 调用 AiRepository 进入流式生成
+     *   3. 完成后把 assistant 回复写回列表
      */
     fun sendMessage(text: String) {
         if (text.isBlank() || _isGenerating.value) return
+
+        val images = _pendingImageUrls.value // 快照，发送后清空
+        _pendingImageUrls.value = emptyList()
 
         val now = System.currentTimeMillis()
         val userMsg = Message(
@@ -109,31 +144,24 @@ class ChatViewModel @Inject constructor(
             timestamp = now
         )
 
-        // 1. 用户消息进列表（只做一次，创建一个新 List 引用）—— 以后 token 到达不再改它
         _messages.value = _messages.value + userMsg
         historyForApi.add("user" to text)
         viewModelScope.launch { runCatching { chatRepository.insertMessage(userMsg) } }
 
-        // 2. 进入生成状态，流式内容开始为空（UI 会渲染一个空气泡 / 光标）
         _isGenerating.value = true
         _error.value = null
         _streamingAssistant.value = ""
 
         generationJob = viewModelScope.launch {
-            val builder = StringBuilder(2048)  // 预分配，避免反复扩容
-            // —— 节流控制：每 50ms 或每 3 个 token 才向 UI emit 一次文本。
-            //    builder 仍然收集每个 token，最终内容不会丢失。
-            //    这样 UI 的 Paragraph.layout / 重组调用减少约 2/3。
+            val builder = StringBuilder(2048)
             var lastEmitNs = 0L
+            val throttleNs = 50_000_000L
             var tokensSinceEmit = 0
-            val throttleNs = 50_000_000L      // 50 ms
-            val throttleMaxTokens = 3
 
             try {
                 val apiKey = settingsRepository.getApiKey()
-                if (apiKey.isBlank()) {
-                    throw ApiException.Unauthorized("请先在设置中配置 API Key")
-                }
+                if (apiKey.isBlank()) throw ApiException.Unauthorized("请先在设置中配置 API Key")
+
                 val temperature = _temperatureStr.value.toDoubleOrNull() ?: 1.0
 
                 aiRepository.streamChat(
@@ -142,22 +170,23 @@ class ChatViewModel @Inject constructor(
                     baseUrl = _baseUrl.value,
                     model = _currentModel.value,
                     apiKey = apiKey,
-                    temperature = temperature
+                    temperature = temperature,
+                    jsonMode = _jsonMode.value,
+                    userImageUrls = images
                 ).collect { token ->
                     builder.append(token)
                     tokensSinceEmit++
                     val now = System.nanoTime()
-                    if (now - lastEmitNs > throttleNs || tokensSinceEmit >= throttleMaxTokens) {
+                    if (now - lastEmitNs > throttleNs || tokensSinceEmit >= 3) {
                         _streamingAssistant.value = builder.toString()
                         lastEmitNs = now
                         tokensSinceEmit = 0
                     }
                 }
 
-                // 3. 完成 —— flush 最后一批（可能有 1-2 个未 emit 的 token），然后写入历史 / DB
                 val finalContent = builder.toString()
                 if (finalContent.isNotEmpty()) {
-                    _streamingAssistant.value = finalContent   // 保证用户最后一眼看到完整文本
+                    _streamingAssistant.value = finalContent
                     val finalMsg = Message(
                         conversationId = currentConversationId,
                         role = "assistant",
@@ -170,15 +199,12 @@ class ChatViewModel @Inject constructor(
                 }
 
             } catch (e: ApiException) {
-                // 错误：与原代码行为一致 —— 不向 UI emit 部分文本，直接消失气泡。
-                // 用户通过 _error Toast 感知失败。
                 _error.value = e.message ?: "发生错误"
-                historyForApi.removeLastOrNull()  // 回滚刚才的 user
+                historyForApi.removeLastOrNull()
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // 用户主动停止生成：保留已到达的所有内容作为一条完整消息
                 val partial = builder.toString()
                 if (partial.isNotEmpty()) {
-                    _streamingAssistant.value = partial   // flush，保证用户立即看到完整文本
+                    _streamingAssistant.value = partial
                     val finalMsg = Message(
                         conversationId = currentConversationId,
                         role = "assistant",
@@ -193,7 +219,6 @@ class ChatViewModel @Inject constructor(
                 }
                 throw e
             } catch (e: Exception) {
-                // 未知错误：与原代码行为一致 —— 不 emit 部分文本，仅显示错误。
                 _error.value = "消息生成失败：${e.message}"
                 historyForApi.removeLastOrNull()
             } finally {
@@ -203,9 +228,6 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 停止生成：取消协程 → AiRepository 会联动取消 HTTP Call。
-     */
     fun stopGeneration() {
         generationJob?.cancel()
         _isGenerating.value = false

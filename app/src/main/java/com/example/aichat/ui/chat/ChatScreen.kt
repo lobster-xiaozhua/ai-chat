@@ -310,7 +310,24 @@ private fun MainChatContent(
             )
         },
         bottomBar = {
-            ChatInputBar(inputText, onInputChange, isGenerating, currentModel, onSend, onStop, onModelClick)
+            ChatInputBar(
+                inputText = inputText,
+                onInputChange = onInputChange,
+                isGenerating = isGenerating,
+                currentModel = currentModel,
+                jsonMode = chatViewModel.jsonMode.collectAsState().value,
+                onToggleJsonMode = { chatViewModel.toggleJsonMode() },
+                pendingImageUrls = chatViewModel.pendingImageUrls.collectAsState().value,
+                onRemoveImage = { chatViewModel.removeImageUrl(it) },
+                onSend = onSend,
+                onStop = onStop,
+                onModelClick = onModelClick,
+                onAddImage = {
+                    // 占位：真实实现用 ActivityResultLauncher 打开相册；这里用演示 URL
+                    val demoUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Collage_of_Nine_Dogs.jpg/800px-Collage_of_Nine_Dogs.jpg"
+                    chatViewModel.addImageUrl(demoUrl)
+                }
+            )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
@@ -351,17 +368,25 @@ private fun ChatInputBar(
     onInputChange: (String) -> Unit,
     isGenerating: Boolean,
     currentModel: String,
+    jsonMode: Boolean,
+    onToggleJsonMode: () -> Unit,
+    pendingImageUrls: List<String>,
+    onRemoveImage: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
-    onModelClick: () -> Unit
+    onModelClick: () -> Unit,
+    onAddImage: () -> Unit
 ) {
     Column {
         Divider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
+
+        // —— 顶部工具条：模型切换 + JSON 开关 + 图片附件
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 onClick = onModelClick,
@@ -369,9 +394,81 @@ private fun ChatInputBar(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.padding(end = 4.dp)
             ) {
-                Text(friendlyModelName(currentModel), modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 13.sp)
+                Text(
+                    friendlyModelName(currentModel),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    fontSize = 13.sp
+                )
+            }
+            // JSON 模式切换
+            Surface(
+                onClick = onToggleJsonMode,
+                shape = RoundedCornerShape(18.dp),
+                color = if (jsonMode) Primary else MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Text(
+                    text = if (jsonMode) "{ } JSON" else "文本",
+                    color = if (jsonMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            // 添加图片按钮
+            Surface(
+                onClick = onAddImage,
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("+", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(4.dp))
+                    Text("图", fontSize = 13.sp)
+                }
             }
         }
+
+        // —— 已选图片预览（小缩略图）
+        if (pendingImageUrls.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                pendingImageUrls.take(4).forEach { url ->
+                    Box(
+                        modifier = Modifier.size(64.dp)
+                    ) {
+                        // 占位方块（实际项目用 Coil/Glide 加载真实图片）
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("🖼️", fontSize = 20.sp)
+                            }
+                        }
+                        // 右上角关闭按钮
+                        Surface(
+                            onClick = { onRemoveImage(url) },
+                            shape = CircleShape,
+                            color = Color(0xFF666666),
+                            modifier = Modifier
+                                .size(18.dp)
+                                .align(Alignment.TopEnd)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // —— 文本输入行
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -381,7 +478,12 @@ private fun ChatInputBar(
             OutlinedTextField(
                 value = inputText,
                 onValueChange = onInputChange,
-                placeholder = { Text("输入消息...", fontSize = 14.sp) },
+                placeholder = {
+                    Text(
+                        text = if (jsonMode) "请输入，回复将为 JSON..." else "输入消息...",
+                        fontSize = 14.sp
+                    )
+                },
                 modifier = Modifier
                     .weight(1f)
                     .padding(end = 12.dp)
