@@ -44,6 +44,10 @@ class SettingsRepository @Inject constructor(
     suspend fun setModelName(name: String) = dataStore.setModelName(name)
     fun getModelName(): Flow<String> = dataStore.getModelName()
 
+    // Selected Models（用户从提供商列表里勾选的模型）
+    suspend fun setSelectedModelIds(ids: List<String>) = dataStore.setSelectedModelIds(ids)
+    fun getSelectedModelIds(): Flow<List<String>> = dataStore.getSelectedModelIds()
+
     // API Key (加密存储)
     suspend fun setApiKey(key: String) { secureKeyStore.saveApiKey(key) }
     fun getApiKey(): String = secureKeyStore.getApiKey()

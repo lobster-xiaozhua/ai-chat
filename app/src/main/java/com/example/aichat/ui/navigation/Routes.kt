@@ -5,4 +5,5 @@ sealed class Routes(val route: String) {
     object Settings : Routes("settings")
     object CustomModel : Routes("custom_model")
     object Account : Routes("account")
+    object ModelPicker : Routes("model_picker")
 }

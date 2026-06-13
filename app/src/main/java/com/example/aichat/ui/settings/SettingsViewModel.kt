@@ -39,6 +39,10 @@ class SettingsViewModel @Inject constructor(
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
+    // 用户从提供商模型列表里勾选的模型 id 集合（有序）
+    private val _selectedModelIds = MutableStateFlow(emptyList<String>())
+    val selectedModelIds: StateFlow<List<String>> = _selectedModelIds.asStateFlow()
+
     init {
         viewModelScope.launch {
             settingsRepository.getTheme().collect { _theme.value = it }
@@ -61,6 +65,9 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.getBaseUrl().collect { _baseUrl.value = it }
         }
+        viewModelScope.launch {
+            settingsRepository.getSelectedModelIds().collect { _selectedModelIds.value = it }
+        }
         _apiKey.value = settingsRepository.getApiKey()
     }
 
@@ -72,4 +79,7 @@ class SettingsViewModel @Inject constructor(
     fun setSystemPrompt(value: String) = viewModelScope.launch { settingsRepository.setSystemPrompt(value) }
     fun setBaseUrl(value: String) = viewModelScope.launch { settingsRepository.setBaseUrl(value) }
     fun setApiKey(value: String) = viewModelScope.launch { settingsRepository.setApiKey(value) }
+    fun setSelectedModelIds(ids: List<String>) = viewModelScope.launch { settingsRepository.setSelectedModelIds(ids) }
+    // 为非挂起调用提供同步快照（ModelsRepository / UI 需要时）
+    fun getApiKeyNow(): String = settingsRepository.getApiKey()
 }

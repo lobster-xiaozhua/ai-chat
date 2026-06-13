@@ -40,6 +40,9 @@ class ChatViewModel @Inject constructor(
     private val _currentModel = MutableStateFlow("deepseek-chat")
     val currentModel: StateFlow<String> = _currentModel.asStateFlow()
 
+    private val _selectedModelIds = MutableStateFlow(emptyList<String>())
+    val selectedModelIds: StateFlow<List<String>> = _selectedModelIds.asStateFlow()
+
     // —————————— 缓存的设置值（从 DataStore 异步收集，提供同步访问）——————————
     private val _baseUrl = MutableStateFlow("https://api.deepseek.com")
     private val _temperatureStr = MutableStateFlow("1.0")
@@ -61,6 +64,9 @@ class ChatViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsRepository.getDefaultModel().collect { if (it.isNotBlank() && !_isGenerating.value) _currentModel.value = it }
+        }
+        viewModelScope.launch {
+            settingsRepository.getSelectedModelIds().collect { _selectedModelIds.value = it }
         }
     }
 
@@ -208,5 +214,8 @@ class ChatViewModel @Inject constructor(
 
     fun clearError() { _error.value = null }
 
-    fun setModel(model: String) { _currentModel.value = model }
+    fun setModel(model: String) {
+        _currentModel.value = model
+        viewModelScope.launch { settingsRepository.setDefaultModel(model) }
+    }
 }

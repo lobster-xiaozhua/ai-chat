@@ -58,10 +58,14 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     onNavigateToSettings: () -> Unit = {},
-    onNavigateToAccount: () -> Unit = {}
+    onNavigateToAccount: () -> Unit = {},
+    onNavigateToModelPicker: () -> Unit = {}
 ) {
     val chatViewModel: ChatViewModel = hiltViewModel()
     val conversationListViewModel: ConversationListViewModel = hiltViewModel()
+
+    // 读取已选模型列表（用户在全屏幕 ModelPickerScreen 中勾选的模型）
+    val selectedModelIds = chatViewModel.selectedModelIds.collectAsState()
 
     // 历史消息 —— 只有在新增完整消息时才变化
     val messages by chatViewModel.messages.collectAsState()
@@ -76,6 +80,10 @@ fun ChatScreen(
     var drawerOpen by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
     var activeConversationId by remember { mutableStateOf<String?>(null) }
+
+    // 展示给用户的快速切换模型列表（优先用户已选；为空则用当前模型作为唯一选项）
+    val quickModels = selectedModelIds.value.ifEmpty { listOf(currentModel) }
+        .distinct().let { if (it.isEmpty()) listOf(currentModel) else it }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
@@ -206,25 +214,18 @@ fun ChatScreen(
                         .clickable(enabled = false) { }
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("选择模型", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
-                        // 根据当前模型名推断 provider，显示对应的推荐模型列表
-                        val nvidiaModels = listOf(
-                            "nvidia/nemotron-nano-12b-v2-vl" to "Nemotron Nano 12B (VL)",
-                            "nvidia/nemotron-4-340b-instruct" to "Nemotron 4 340B",
-                            "meta/llama-3.1-8b-instruct" to "Llama 3.1 8B",
-                            "meta/llama-3.2-11b-vision-instruct" to "Llama 3.2 11B Vision",
-                            "mistralai/mistral-7b-instruct-v0.3" to "Mistral 7B v0.3",
-                            "qwen/qwen2.5-72b-instruct" to "Qwen 2.5 72B"
-                        )
-                        val deepseekModels = listOf(
-                            "deepseek-chat" to "DeepSeek Chat",
-                            "deepseek-coder" to "DeepSeek Coder"
-                        )
-                        val modelList = if (currentModel.startsWith("nvidia/")
-                            || currentModel.startsWith("meta/")
-                            || currentModel.startsWith("mistralai/")
-                            || currentModel.startsWith("qwen/")) nvidiaModels else deepseekModels
-                        modelList.forEach { (id, name) ->
+                        Text("选择模型", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp))
+                        // 显示用户在全屏幕选择器中已勾选的模型
+                        if (quickModels.size == 1 && quickModels[0] == currentModel) {
+                            // 还没有选过模型 → 提示用户去全屏幕选择器中选择
+                            Text(
+                                "尚未选择常用模型，点击下方按钮前往选择。",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        quickModels.forEach { id ->
                             val selected = currentModel == id
                             Surface(
                                 onClick = { chatViewModel.setModel(id); showModelSelector = false },
@@ -234,7 +235,46 @@ fun ChatScreen(
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
                             ) {
-                                Text(name, color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(16.dp))
+                                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    Text(
+                                        friendlyModelName(id),
+                                        color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(16.dp).weight(1f),
+                                        fontSize = 13.sp
+                                    )
+                                    if (selected) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.padding(end = 12.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        // "更多模型" 入口 —— 跳转到全屏幕选择器
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
+                            onClick = { showModelSelector = false; onNavigateToModelPicker() },
+                            color = MaterialTheme.colorScheme.surface,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp, MaterialTheme.colorScheme.outlineVariant
+                            )
+                        ) {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = Primary,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                                Text("选择更多模型 (搜索 / 多选)",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f))
                             }
                         }
                     }

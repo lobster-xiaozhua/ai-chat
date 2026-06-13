@@ -28,6 +28,7 @@ class SettingsDataStore @Inject constructor(
         val SYSTEM_PROMPT = stringPreferencesKey("system_prompt")
         val BASE_URL = stringPreferencesKey("base_url")
         val MODEL_NAME = stringPreferencesKey("model_name")
+        val SELECTED_MODEL_IDS = stringPreferencesKey("selected_model_ids") // 已选模型 id 列表，以 | 分隔
     }
 
     suspend fun setTheme(theme: String) { context.dataStore.edit { it[Keys.THEME] = theme } }
@@ -53,4 +54,13 @@ class SettingsDataStore @Inject constructor(
 
     suspend fun setModelName(name: String) { context.dataStore.edit { it[Keys.MODEL_NAME] = name } }
     fun getModelName(): Flow<String> = context.dataStore.data.map { it[Keys.MODEL_NAME] ?: "deepseek-chat" }
+
+    // 已选模型列表：持久化为以 | 分隔的字符串，便于 JSON-free 存储
+    suspend fun setSelectedModelIds(ids: List<String>) {
+        context.dataStore.edit { it[Keys.SELECTED_MODEL_IDS] = ids.joinToString("|") }
+    }
+    fun getSelectedModelIds(): Flow<List<String>> = context.dataStore.data.map {
+        val raw = it[Keys.SELECTED_MODEL_IDS]
+        if (raw.isNullOrBlank()) emptyList() else raw.split("|").filter(String::isNotBlank)
+    }
 }

@@ -44,7 +44,8 @@ import com.example.aichat.ui.theme.Primary
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit = {},
-    onNavigateToCustomModel: () -> Unit = {}
+    onNavigateToCustomModel: () -> Unit = {},
+    onNavigateToModelPicker: () -> Unit = {}
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val theme by viewModel.theme.collectAsState()
@@ -201,6 +202,25 @@ fun SettingsScreen(
                             activeTrackColor = Primary
                         )
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        onClick = onNavigateToModelPicker,
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("从提供商获取所有可用模型 (搜索 / 多选)",
+                                modifier = Modifier.weight(1f),
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("›", color = Color.Gray)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     Surface(
                         onClick = onNavigateToCustomModel,
