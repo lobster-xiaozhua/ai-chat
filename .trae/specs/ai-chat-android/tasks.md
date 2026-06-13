@@ -4,7 +4,7 @@
 
 ---
 
-## [ ] Task 1: 项目脚手架与依赖注入（Phase 0 — Setup）
+## [x] Task 1: 项目脚手架与依赖注入（Phase 0 — Setup） ✅
 - **Priority**: P0
 - **Depends On**: None
 - **Description**:
@@ -26,7 +26,7 @@
 
 ---
 
-## [ ] Task 2: 导航框架与三屏骨架（Phase 1 — Navigation）
+## [x] Task 2: 导航框架与三屏骨架（Phase 1 — Navigation） ✅
 - **Priority**: P0
 - **Depends On**: Task 1
 - **Description**:
@@ -49,7 +49,7 @@
 
 ---
 
-## [ ] Task 3: 本地数据层（Phase 2 — Data）
+## [x] Task 3: 本地数据层（Phase 2 — Data） ✅
 - **Priority**: P0
 - **Depends On**: Task 2
 - **Description**:
@@ -72,7 +72,7 @@
 
 ---
 
-## [ ] Task 4: 网络层与 SSE 解析（Phase 3 — Network）
+## [x] Task 4: 网络层与 SSE 解析（Phase 3 — Network） ✅
 - **Priority**: P0
 - **Depends On**: Task 3
 - **Description**:
@@ -94,7 +94,7 @@
 
 ---
 
-## [ ] Task 5: 聊天界面核心实现（Phase 4 — Chat）
+## [/] Task 5: 聊天界面核心实现（Phase 4 — Chat）
 - **Priority**: P0
 - **Depends On**: Task 4
 - **Description**:
