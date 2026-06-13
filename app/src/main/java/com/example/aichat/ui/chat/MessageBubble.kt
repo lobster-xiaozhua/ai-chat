@@ -47,8 +47,9 @@ fun MessageBubble(
                     // 光标占位 —— 流式开始但第一个 token 尚未到达
                     Text("…", color = textColor.copy(alpha = 0.4f))
                 } else if (isStreaming) {
-                    // 流式：双段冻结渲染 —— 解决"越往后越慢"
-                    StreamingText(text = content, isStreaming = true, textColor = textColor)
+                    // 流式：段落级缓存 —— 每个已完成段落独立渲染 + 永久冻结
+                    // 只有最末尾的活跃段参与 layout，长度恒定 → 不再"越往后越慢"
+                    ParagraphStreamingText(text = content, isStreaming = true, textColor = textColor)
                 } else {
                     // 完成态：Markdown + 选中支持
                     MarkdownRenderer(content, textColor, isStreaming = false)
