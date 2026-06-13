@@ -23,8 +23,13 @@ class ChatViewModel @Inject constructor(
 ) : ViewModel() {
 
     // —————————— UI state ——————————
+    // 仅包含"已完成"的历史消息 —— 不随流式 token 变化
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
+
+    // 正在流式生成的 assistant 内容 —— 只由一条气泡读取，每 token 只更新这一个 String
+    private val _streamingAssistant = MutableStateFlow<String?>(null)
+    val streamingAssistant: StateFlow<String?> = _streamingAssistant.asStateFlow()
 
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
@@ -45,26 +50,17 @@ class ChatViewModel @Inject constructor(
     private var historyForApi = mutableListOf<Pair<String, String>>()
 
     init {
-        // 后台收集设置值到 StateFlow，供 sendMessage 同步访问
         viewModelScope.launch {
-            settingsRepository.getBaseUrl().collect {
-                if (it.isNotBlank()) _baseUrl.value = it
-            }
+            settingsRepository.getBaseUrl().collect { if (it.isNotBlank()) _baseUrl.value = it }
         }
         viewModelScope.launch {
-            settingsRepository.getTemperature().collect {
-                if (it.isNotBlank()) _temperatureStr.value = it
-            }
+            settingsRepository.getTemperature().collect { if (it.isNotBlank()) _temperatureStr.value = it }
         }
         viewModelScope.launch {
-            settingsRepository.getSystemPrompt().collect {
-                _systemPrompt.value = it
-            }
+            settingsRepository.getSystemPrompt().collect { _systemPrompt.value = it }
         }
         viewModelScope.launch {
-            settingsRepository.getDefaultModel().collect {
-                if (it.isNotBlank() && !_isGenerating.value) _currentModel.value = it
-            }
+            settingsRepository.getDefaultModel().collect { if (it.isNotBlank() && !_isGenerating.value) _currentModel.value = it }
         }
     }
 
@@ -76,10 +72,11 @@ class ChatViewModel @Inject constructor(
         currentConversationId = conversationId
         generationJob?.cancel()
         _isGenerating.value = false
+        _streamingAssistant.value = null
 
         viewModelScope.launch {
             val history = chatRepository.getMessagesAsList(conversationId)
-            _messages.value = history.toMutableList()
+            _messages.value = history
             historyForApi = history
                 .filter { it.role == "user" || it.role == "assistant" }
                 .map { it.role to it.content }
@@ -88,56 +85,42 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 发送消息。逻辑：
-     *   1. 构造用户消息，追加到列表，写入数据库
-     *   2. 调用 AI 流式接口，逐 token 更新列表中最后一条 assistant 消息
-     *   3. 结束后：写入 assistant 消息，更新会话标题
-     *   4. 异常：根据 ApiException 类型给出对用户友好的提示
+     * 发送消息。关键路径：
+     *   1. 用户消息立即进列表 + 写 DB
+     *   2. 设置 _streamingAssistant = "" 触发占位气泡
+     *   3. 流式接口逐 token 写 StringBuilder，每到达一个 token 就把整个字符串 toString() 一次
+     *      emit 给 _streamingAssistant（String 不可变，Compose 只重组一个气泡）
+     *   4. 完成后：一次性将 assistant 消息加入 _messages，写 DB，并清空 _streamingAssistant
      */
     fun sendMessage(text: String) {
         if (text.isBlank() || _isGenerating.value) return
 
+        val now = System.currentTimeMillis()
         val userMsg = Message(
             conversationId = currentConversationId,
             role = "user",
             content = text,
-            timestamp = System.currentTimeMillis()
+            timestamp = now
         )
 
-        // —— 先把用户消息显示出来并写入 DB ——
-        val currentList = _messages.value.toMutableList()
-        currentList.add(userMsg)
-        _messages.value = currentList
+        // 1. 用户消息进列表（只做一次，创建一个新 List 引用）—— 以后 token 到达不再改它
+        _messages.value = _messages.value + userMsg
         historyForApi.add("user" to text)
+        viewModelScope.launch { runCatching { chatRepository.insertMessage(userMsg) } }
 
-        viewModelScope.launch {
-            runCatching { chatRepository.insertMessage(userMsg) }
-        }
-
+        // 2. 进入生成状态，流式内容开始为空（UI 会渲染一个空气泡 / 光标）
         _isGenerating.value = true
         _error.value = null
-
-        // assistant 占位消息：列表最后一条之后插入一条空内容项
-        val assistantMsgPlaceholder = Message(
-            conversationId = currentConversationId,
-            role = "assistant",
-            content = "",
-            timestamp = System.currentTimeMillis()
-        )
-        val listWithAssistant = _messages.value.toMutableList()
-        listWithAssistant.add(assistantMsgPlaceholder)
-        _messages.value = listWithAssistant
-
-        val assistantIndex = _messages.value.size - 1
-        var assistantContent = ""
+        _streamingAssistant.value = ""
 
         generationJob = viewModelScope.launch {
+            val builder = StringBuilder(2048)  // 预分配，避免反复扩容
+
             try {
                 val apiKey = settingsRepository.getApiKey()
                 if (apiKey.isBlank()) {
                     throw ApiException.Unauthorized("请先在设置中配置 API Key")
                 }
-
                 val temperature = _temperatureStr.value.toDoubleOrNull() ?: 1.0
 
                 aiRepository.streamChat(
@@ -148,66 +131,50 @@ class ChatViewModel @Inject constructor(
                     apiKey = apiKey,
                     temperature = temperature
                 ).collect { token ->
-                    assistantContent += token
-                    // 只替换 assistant 那条：不可变列表语义，其它 item 保持不变
-                    val updated = java.util.ArrayList(_messages.value)
-                    updated[assistantIndex] = updated[assistantIndex].copy(content = assistantContent)
-                    _messages.value = updated
+                    builder.append(token)
+                    // 只改这一个 String，Compose 只重组流式气泡的 Text
+                    _streamingAssistant.value = builder.toString()
                 }
 
-                // —— 流结束：补写 assistant 消息到数据库，更新会话标题 ——
-                if (assistantContent.isNotEmpty()) {
+                // 3. 完成 —— 写 DB + 加入历史消息列表（一次性，之后所有 token 都不再触发 LazyColumn diff）
+                val finalContent = builder.toString()
+                if (finalContent.isNotEmpty()) {
                     val finalMsg = Message(
                         conversationId = currentConversationId,
                         role = "assistant",
-                        content = assistantContent,
+                        content = finalContent,
                         timestamp = System.currentTimeMillis()
                     )
-                    // 更新 UI 列表中的最后内容（确保 timestamp 等字段一致）
-                    val finalList = java.util.ArrayList(_messages.value)
-                    finalList[assistantIndex] = finalMsg
-                    _messages.value = finalList
-                    historyForApi.add("assistant" to assistantContent)
-
-                    viewModelScope.launch {
-                        runCatching { chatRepository.insertMessage(finalMsg) }
-                    }
-                } else {
-                    // 空回复：移除占位
-                    val finalList = _messages.value.toMutableList()
-                    finalList.removeAt(assistantIndex)
-                    _messages.value = finalList
-                    historyForApi.removeLastOrNull()
+                    _messages.value = _messages.value + finalMsg
+                    historyForApi.add("assistant" to finalContent)
+                    viewModelScope.launch { runCatching { chatRepository.insertMessage(finalMsg) } }
                 }
 
             } catch (e: ApiException) {
                 _error.value = e.message ?: "发生错误"
-                rollbackAssistant(assistantIndex)
+                historyForApi.removeLastOrNull()  // 回滚刚才的 user
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // 用户主动停止生成：不显示错误，但保留已生成的内容
-                // 同样写入 DB，让用户能看到已生成的部分
-                if (assistantContent.isNotEmpty()) {
+                // 用户主动停止生成：若已有内容则保留为一条完整消息
+                val partial = builder.toString()
+                if (partial.isNotEmpty()) {
                     val finalMsg = Message(
                         conversationId = currentConversationId,
                         role = "assistant",
-                        content = assistantContent,
+                        content = partial,
                         timestamp = System.currentTimeMillis()
                     )
-                    val finalList = java.util.ArrayList(_messages.value)
-                    finalList[assistantIndex] = finalMsg
-                    _messages.value = finalList
-                    historyForApi.add("assistant" to assistantContent)
-                    viewModelScope.launch {
-                        runCatching { chatRepository.insertMessage(finalMsg) }
-                    }
+                    _messages.value = _messages.value + finalMsg
+                    historyForApi.add("assistant" to partial)
+                    viewModelScope.launch { runCatching { chatRepository.insertMessage(finalMsg) } }
                 } else {
-                    rollbackAssistant(assistantIndex)
+                    historyForApi.removeLastOrNull()
                 }
                 throw e
             } catch (e: Exception) {
                 _error.value = "消息生成失败：${e.message}"
-                rollbackAssistant(assistantIndex)
+                historyForApi.removeLastOrNull()
             } finally {
+                _streamingAssistant.value = null
                 _isGenerating.value = false
             }
         }
@@ -219,25 +186,10 @@ class ChatViewModel @Inject constructor(
     fun stopGeneration() {
         generationJob?.cancel()
         _isGenerating.value = false
+        _streamingAssistant.value = null
     }
 
     fun clearError() { _error.value = null }
 
     fun setModel(model: String) { _currentModel.value = model }
-
-    /**
-     * 回滚：移除 assistant 占位消息（出错 / 取消且无内容时）。
-     */
-    private fun rollbackAssistant(index: Int) {
-        val current = _messages.value
-        if (index in current.indices) {
-            val rolled = current.toMutableList()
-            rolled.removeAt(index)
-            _messages.value = rolled
-        }
-        // 同时把之前加到 historyForApi 的那一条 user 回滚，避免下次请求上下文错乱
-        if (historyForApi.lastOrNull()?.first == "user") {
-            historyForApi.removeLast()
-        }
-    }
 }
