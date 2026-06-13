@@ -122,7 +122,45 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // —— 快速配置：一键填入推荐的 baseUrl + modelName
+            Text(
+                "快速配置",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PresetButton(
+                    text = "DeepSeek",
+                    onClick = {
+                        baseUrl = "https://api.deepseek.com"
+                        modelName = "deepseek-chat"
+                    }
+                )
+                PresetButton(
+                    text = "NVIDIA 云端",
+                    onClick = {
+                        baseUrl = "https://integrate.api.nvidia.com/v1"
+                        modelName = "nvidia/nemotron-nano-12b-v2-vl"
+                    }
+                )
+                PresetButton(
+                    text = "本地 NIM",
+                    onClick = {
+                        baseUrl = "http://localhost:8000/v1"
+                        modelName = "meta/llama3-8b-instruct"
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             Surface(
                 onClick = {
@@ -144,5 +182,25 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PresetButton(text: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp, MaterialTheme.colorScheme.outlineVariant
+        ),
+        modifier = Modifier.weight(1f)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(vertical = 12.dp),
+            fontSize = 13.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
     }
 }

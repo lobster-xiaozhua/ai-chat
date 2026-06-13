@@ -128,14 +128,62 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // —— API 提供商选择：切换时自动填充推荐的 baseUrl + 推荐模型
+                    DropdownSelector(
+                        label = "API 提供商",
+                        value = when {
+                            defaultModel.startsWith("nvidia/") || defaultModel.startsWith("meta/")
+                                || defaultModel.startsWith("mistralai/") -> "NVIDIA API"
+                            else -> "DeepSeek"
+                        },
+                        options = listOf(
+                            "DeepSeek" to "deepseek",
+                            "NVIDIA API (TensorRT-LLM)" to "nvidia",
+                            "本地 NIM 微服务" to "nim"
+                        ),
+                        onSelect = { provider ->
+                            when (provider) {
+                                "nvidia" -> {
+                                    viewModel.setBaseUrl("https://integrate.api.nvidia.com/v1")
+                                    viewModel.setDefaultModel("nvidia/nemotron-nano-12b-v2-vl")
+                                }
+                                "nim" -> {
+                                    viewModel.setBaseUrl("http://localhost:8000/v1")
+                                    viewModel.setDefaultModel("meta/llama3-8b-instruct")
+                                }
+                                else -> {
+                                    viewModel.setBaseUrl("https://api.deepseek.com")
+                                    viewModel.setDefaultModel("deepseek-chat")
+                                }
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // —— 默认模型：根据当前 provider 提供一份推荐列表
                     DropdownSelector(
                         label = "默认模型",
                         value = defaultModel,
-                        options = listOf(
-                            "DeepSeek Chat" to "deepseek-chat",
-                            "DeepSeek Coder" to "deepseek-coder",
-                            "GPT-4o Mini" to "gpt-4o-mini"
-                        ),
+                        options = run {
+                            val nvidiaModels = listOf(
+                                "Nemotron Nano 12B (VL)" to "nvidia/nemotron-nano-12b-v2-vl",
+                                "Nemotron 4 340B Instruct" to "nvidia/nemotron-4-340b-instruct",
+                                "Llama 3.1 8B Instruct" to "meta/llama-3.1-8b-instruct",
+                                "Llama 3.2 11B Vision" to "meta/llama-3.2-11b-vision-instruct",
+                                "Mistral 7B Instruct v0.3" to "mistralai/mistral-7b-instruct-v0.3",
+                                "Qwen 2.5 72B Instruct" to "qwen/qwen2.5-72b-instruct"
+                            )
+                            val deepseekModels = listOf(
+                                "DeepSeek Chat" to "deepseek-chat",
+                                "DeepSeek Coder" to "deepseek-coder"
+                            )
+                            // 根据当前模型名推断 provider，显示对应推荐列表
+                            if (defaultModel.startsWith("nvidia/") || defaultModel.startsWith("meta/")
+                                || defaultModel.startsWith("mistralai/") || defaultModel.startsWith("qwen/")) {
+                                nvidiaModels
+                            } else {
+                                deepseekModels
+                            }
+                        },
                         onSelect = { viewModel.setDefaultModel(it) }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -165,7 +213,7 @@ fun SettingsScreen(
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("自定义大模型配置", modifier = Modifier.weight(1f))
+                            Text("自定义大模型配置 (API 地址 / 模型名 / Key)", modifier = Modifier.weight(1f), fontSize = 13.sp, color = Color.Gray)
                             Text("›", color = Color.Gray)
                         }
                     }

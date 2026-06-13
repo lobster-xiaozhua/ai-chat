@@ -207,11 +207,24 @@ fun ChatScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("选择模型", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
-                        listOf(
+                        // 根据当前模型名推断 provider，显示对应的推荐模型列表
+                        val nvidiaModels = listOf(
+                            "nvidia/nemotron-nano-12b-v2-vl" to "Nemotron Nano 12B (VL)",
+                            "nvidia/nemotron-4-340b-instruct" to "Nemotron 4 340B",
+                            "meta/llama-3.1-8b-instruct" to "Llama 3.1 8B",
+                            "meta/llama-3.2-11b-vision-instruct" to "Llama 3.2 11B Vision",
+                            "mistralai/mistral-7b-instruct-v0.3" to "Mistral 7B v0.3",
+                            "qwen/qwen2.5-72b-instruct" to "Qwen 2.5 72B"
+                        )
+                        val deepseekModels = listOf(
                             "deepseek-chat" to "DeepSeek Chat",
-                            "deepseek-coder" to "DeepSeek Coder",
-                            "gpt-4o-mini" to "GPT-4o Mini"
-                        ).forEach { (id, name) ->
+                            "deepseek-coder" to "DeepSeek Coder"
+                        )
+                        val modelList = if (currentModel.startsWith("nvidia/")
+                            || currentModel.startsWith("meta/")
+                            || currentModel.startsWith("mistralai/")
+                            || currentModel.startsWith("qwen/")) nvidiaModels else deepseekModels
+                        modelList.forEach { (id, name) ->
                             val selected = currentModel == id
                             Surface(
                                 onClick = { chatViewModel.setModel(id); showModelSelector = false },
@@ -316,7 +329,7 @@ private fun ChatInputBar(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.padding(end = 4.dp)
             ) {
-                Text(currentModel, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 13.sp)
+                Text(friendlyModelName(currentModel), modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 13.sp)
             }
         }
         Row(
@@ -440,4 +453,24 @@ private fun formatTime(timestamp: Long): String {
         diff < 86400000 -> "${diff / 3600000} 小时前"
         else -> "${diff / 86400000} 天前"
     }
+}
+
+/**
+ * 将内部模型名转为用户友好的显示名。例如：
+ *   "nvidia/nemotron-nano-12b-v2-vl" → "Nemotron Nano 12B (VL)"
+ *   "deepseek-chat" → "DeepSeek Chat"
+ *   未知模型名原样返回。
+ */
+private fun friendlyModelName(model: String): String = when {
+    model == "nvidia/nemotron-nano-12b-v2-vl" -> "Nemotron Nano 12B"
+    model == "nvidia/nemotron-4-340b-instruct" -> "Nemotron 4 340B"
+    model.startsWith("nvidia/") -> "Nemotron"
+    model.startsWith("meta/llama-3.1") -> "Llama 3.1"
+    model.startsWith("meta/llama-3.2") -> "Llama 3.2 Vision"
+    model.startsWith("meta/") -> "Llama"
+    model.startsWith("mistralai/") -> "Mistral"
+    model.startsWith("qwen/") -> "Qwen"
+    model == "deepseek-chat" -> "DeepSeek Chat"
+    model == "deepseek-coder" -> "DeepSeek Coder"
+    else -> model
 }
