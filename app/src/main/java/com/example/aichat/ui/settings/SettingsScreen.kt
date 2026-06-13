@@ -139,18 +139,13 @@ fun SettingsScreen(
                         },
                         options = listOf(
                             "DeepSeek" to "deepseek",
-                            "NVIDIA API (TensorRT-LLM)" to "nvidia",
-                            "本地 NIM 微服务" to "nim"
+                            "NVIDIA API (TensorRT-LLM)" to "nvidia"
                         ),
                         onSelect = { provider ->
                             when (provider) {
                                 "nvidia" -> {
                                     viewModel.setBaseUrl("https://integrate.api.nvidia.com/v1")
                                     viewModel.setDefaultModel("nvidia/nemotron-nano-12b-v2-vl")
-                                }
-                                "nim" -> {
-                                    viewModel.setBaseUrl("http://localhost:8000/v1")
-                                    viewModel.setDefaultModel("meta/llama3-8b-instruct")
                                 }
                                 else -> {
                                     viewModel.setBaseUrl("https://api.deepseek.com")

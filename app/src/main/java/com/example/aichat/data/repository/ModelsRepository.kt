@@ -75,10 +75,9 @@ class ModelsRepository @Inject constructor(
      * 将 baseUrl 变成 /v1/models URL。
      * 处理方式：先 trimEnd('/')，然后检查是否以 "/v1" 结尾。
      *   "https://integrate.api.nvidia.com/v1"    → ".../v1/models"
-     *   "https://api.deepseek.com"                 → ".../models"  （DeepSeek 直接支持 /models）
-     *   "http://localhost:8000/v1"                 → ".../v1/models"
+     *   "https://api.deepseek.com"                 → ".../v1/models"
      *
-     * 为了最大兼容性，我们始终尝试 "{trimmed}/models"，其中 trimmed 必须以 "/v1" 结尾。
+     * 为了最大兼容性，始终尝试 "{trimmed}/models"，其中 trimmed 以 "/v1" 结尾。
      */
     private fun buildModelsUrl(baseUrl: String): String {
         val trimmed = baseUrl.trim().trimEnd('/')

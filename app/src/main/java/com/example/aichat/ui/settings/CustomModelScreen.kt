@@ -151,13 +151,6 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                         modelName = "nvidia/nemotron-nano-12b-v2-vl"
                     }
                 )
-                PresetButton(
-                    text = "本地 NIM",
-                    onClick = {
-                        baseUrl = "http://localhost:8000/v1"
-                        modelName = "meta/llama3-8b-instruct"
-                    }
-                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))

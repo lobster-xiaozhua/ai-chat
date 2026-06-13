@@ -11,7 +11,7 @@ import retrofit2.http.Url
  *   GET {baseUrl}/models
  *   Authorization: Bearer {apiKey}
  *
- * 适用于 NVIDIA API、本地 NIM、DeepSeek、OpenAI 等所有符合此规范的后端。
+ * 适用于 NVIDIA API、DeepSeek、OpenAI 等所有符合此规范的后端。
  */
 interface ModelsApiService {
 
