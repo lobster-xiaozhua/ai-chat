@@ -1,23 +1,13 @@
 package com.example.aichat.data.remote.dto
 
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.descriptors.buildClassSerialDescriptor
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.JsonTransformer
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /* ============================================================
  * Chat Completion Request / Response
@@ -43,84 +33,54 @@ data class ResponseFormat(val type: String) // "text" | "json_object"
 
 /* ---------- 消息 ---------- */
 
+/**
+ * content 字段采用 kotlinx 原生的 `JsonElement`：
+ *   - 纯文本: `JsonPrimitive("hello")` 或 `buildTextContent("hello")`
+ *   - 多模态: `buildContent { text("..."); image("https://...") }`
+ *
+ * 这种方式比自定义 KSerializer 更简洁：
+ *   1. JsonElement 已在 kotlinx-serialization-json 中内建可序列化
+ *   2. 调用者用 builder 函数灵活构造文本/多模态 content
+ *   3. 没有 sealed class + 自定义序列化器的编译陷阱
+ */
 @Serializable
 data class RequestMessage(
-    val role: String,                  // "system" | "user" | "assistant" | "tool"
-    @Serializable(with = MessageContentSerializer::class)
-    val content: MessageContent,       // 纯文本 或 多模态内容列表
+    val role: String,                      // "system" | "user" | "assistant" | "tool"
+    val content: JsonElement,              // 纯文本 JSON 字符串 或 多模态 JSON 数组
     val name: String? = null,
     @SerialName("tool_calls") val toolCalls: List<ToolCall>? = null,
     @SerialName("tool_call_id") val toolCallId: String? = null
 )
 
-/** content 的两种形式：纯字符串 / 多模态内容列表 */
-sealed class MessageContent {
-    data class Text(val text: String) : MessageContent()
-    data class Parts(val parts: List<ContentPart>) : MessageContent()
-}
+/* ---------- content 构建器：一行代码构建文本/多模态内容 ---------- */
 
-/** 自定义序列化器：根据 JSON 实际形态自动选择 */
-object MessageContentSerializer : KSerializer<MessageContent> {
-    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("MessageContent")
+/** 构建纯文本 content（绝大多数场景使用这个） */
+fun buildTextContent(text: String): JsonElement = JsonPrimitive(text)
 
-    override fun serialize(encoder: Encoder, value: MessageContent) {
-        val jsonEncoder = encoder as? kotlinx.serialization.json.JsonEncoder
-            ?: error("MessageContent requires JsonEncoder")
-        val element = when (value) {
-            is MessageContent.Text -> JsonPrimitive(value.text)
-            is MessageContent.Parts -> buildJsonArray {
-                value.parts.forEach { part ->
-                    add(part.toJsonElement())
-                }
-            }
-        }
-        jsonEncoder.encodeJsonElement(element)
-    }
-
-    override fun deserialize(decoder: Decoder): MessageContent {
-        val jsonDecoder = decoder as? kotlinx.serialization.json.JsonDecoder
-            ?: error("MessageContent requires JsonDecoder")
-        return when (val element = jsonDecoder.decodeJsonElement()) {
-            is JsonPrimitive -> MessageContent.Text(element.content)
-            is JsonArray -> {
-                val parts = element.jsonArray.mapNotNull { parseContentPart(it) }
-                MessageContent.Parts(parts)
-            }
-            else -> MessageContent.Text(element.toString())
-        }
-    }
-
-    private fun parseContentPart(element: JsonElement): ContentPart? {
-        val obj = element.jsonObject
-        return when (obj["type"]?.jsonPrimitive?.content) {
-            "text" -> ContentPart.Text(obj["text"]?.jsonPrimitive?.content ?: "")
-            "image_url" -> {
-                val img = obj["image_url"]?.jsonObject
-                ContentPart.Image(
-                    url = img?.get("url")?.jsonPrimitive?.content ?: "",
-                    detail = img?.get("detail")?.jsonPrimitive?.content
-                )
-            }
-            else -> null
-        }
+/** 构建多模态 content（文本 + 图片） */
+fun buildMultipartContent(block: ContentBuilder.() -> Unit): JsonElement {
+    val builder = ContentBuilder().apply(block)
+    return buildJsonArray {
+        builder.parts.forEach { add(it) }
     }
 }
 
-/** 多模态内容片段 */
-sealed class ContentPart {
-    data class Text(val text: String) : ContentPart()
-    data class Image(val url: String, val detail: String? = null) : ContentPart()
+class ContentBuilder {
+    internal val parts = mutableListOf<JsonObject>()
 
-    fun toJsonElement(): JsonElement = when (this) {
-        is Text -> buildJsonObject {
+    fun text(text: String) {
+        parts += buildJsonObject {
             put("type", "text")
-            put("text", this@toJsonElement.text)
+            put("text", text)
         }
-        is Image -> buildJsonObject {
+    }
+
+    fun image(url: String, detail: String? = null) {
+        parts += buildJsonObject {
             put("type", "image_url")
             put("image_url", buildJsonObject {
-                put("url", this@toJsonElement.url)
-                this@toJsonElement.detail?.let { put("detail", it) }
+                put("url", url)
+                detail?.let { put("detail", it) }
             })
         }
     }

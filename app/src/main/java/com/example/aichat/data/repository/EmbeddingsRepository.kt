@@ -7,7 +7,7 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.sqrt
+import kotlin.math.sqrt as mathSqrt
 
 /* ============================================================================
  * 本地向量库 + RAG 检索
@@ -175,6 +175,7 @@ class EmbeddingsRepository @Inject constructor(
 
     /* ---------- 数学工具 ---------- */
 
+    /** 快速余弦相似度（Float 原生运算，避免 Double 转换） */
     private fun cosine(a: FloatArray, b: FloatArray): Float {
         var dot = 0f
         var na = 0f
@@ -188,13 +189,13 @@ class EmbeddingsRepository @Inject constructor(
             nb += bv * bv
         }
         if (na == 0f || nb == 0f) return 0f
-        return dot / (sqrt(na.toDouble()) * sqrt(nb.toDouble())).toFloat()
+        return dot / (mathSqrt(na) * mathSqrt(nb))
     }
 
     private fun normalize(v: FloatArray): FloatArray {
         var s = 0f
         for (x in v) s += x * x
-        val norm = sqrt(s.toDouble()).toFloat()
+        val norm = mathSqrt(s)
         if (norm < 1e-9f) return v.apply { fill(0f); this[0] = 1f }
         for (i in v.indices) v[i] /= norm
         return v
