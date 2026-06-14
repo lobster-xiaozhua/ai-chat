@@ -8,16 +8,16 @@ plugins {
 
 android {
     namespace = "com.example.aichat"
-    // compileSdk = 36：安卓 16 — AGP 8.7.x 官方支持
-    // （Android 16 / API 36 需要 AGP 8.7+；覆盖 MagicOS 10.0+ 全机型）
-    compileSdk = 36
+    // compileSdk = 35：安卓 15 — AGP 8.7.x 官方最高支持
+    // （覆盖 MagicOS 10.0+ / 荣耀 90GT 全机型；AGP 8.7 官方文档最高支持 API 35）
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.aichat"
         // minSdk = 29：安卓 10，覆盖荣耀 90GT（出厂 MagicOS 7.2 / Android 13）
         minSdk = 29
-        // targetSdk = 36：安卓 16 — MagicOS 10.0+ 强要求 targetSdk ≥ 33
-        targetSdk = 36
+        // targetSdk = 35：安卓 15 — MagicOS 10.0+ 强要求 targetSdk ≥ 33
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -123,8 +123,8 @@ dependencies {
     implementation("androidx.paging:paging-runtime-ktx:3.3.2")
     implementation("androidx.paging:paging-compose:3.3.2")
 
-    implementation("com.google.dagger:hilt-android:2.55")
-    ksp("com.google.dagger:hilt-android-compiler:2.55")
+    implementation("com.google.dagger:hilt-android:2.59.2")
+    ksp("com.google.dagger:hilt-android-compiler:2.59.2")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
