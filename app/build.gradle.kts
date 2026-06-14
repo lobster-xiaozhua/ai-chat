@@ -33,15 +33,15 @@ android {
     signingConfigs {
         create("release") {
             val keystoreFromProps = (project.properties["KEYSTORE_FILE"] as? String)?.takeIf { it.isNotBlank() }
-            if (keystoreFromProps != null && java.io.File(keystoreFromProps).exists()) {
+            if (keystoreFromProps != null && file(keystoreFromProps).exists()) {
                 // —— 显式提供了 keystore —— 用用户提供的签名信息
-                storeFile = java.io.File(keystoreFromProps)
+                storeFile = file(keystoreFromProps)
                 storePassword = (project.properties["KEYSTORE_PASSWORD"] as? String) ?: ""
                 keyAlias = (project.properties["KEY_ALIAS"] as? String) ?: ""
                 keyPassword = (project.properties["KEY_PASSWORD"] as? String) ?: ""
             } else {
                 // —— fallback：AGP 自动生成的 debug keystore（任何 Android SDK 环境都存在）
-                val debugStore = java.io.File("${System.getenv("HOME")}/.android/debug.keystore")
+                val debugStore = file("${System.getenv("HOME")}/.android/debug.keystore")
                 if (debugStore.exists()) {
                     storeFile = debugStore
                     storePassword = "android"
@@ -77,7 +77,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
+    kotlin {
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        }
+    }
     buildFeatures {
         compose = true
         buildConfig = true
