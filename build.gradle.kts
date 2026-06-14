@@ -6,4 +6,5 @@ plugins {
     id("com.google.devtools.ksp") version "2.3.9" apply false
     // Hilt 2.59+ 要求 AGP 9.x（Breaking change），当前 AGP 8.x 需锁定 2.58
     id("com.google.dagger.hilt.android") version "2.58" apply false
+    id("androidx.room") version "2.8.4" apply false
 }
