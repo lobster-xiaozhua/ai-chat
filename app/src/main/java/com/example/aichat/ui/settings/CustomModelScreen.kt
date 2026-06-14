@@ -186,7 +186,7 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
 }
 
 @Composable
-private fun PresetButton(text: String, onClick: () -> Unit) {
+private fun RowScope.PresetButton(text: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
