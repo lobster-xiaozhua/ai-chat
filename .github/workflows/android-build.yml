@@ -1,42 +1,23 @@
 name: Android — 自动构建与发布
 
-# ========================================================================
-# 触发规则
-#   · 推送到 main/master → 完整构建 debug + release
-#   · Pull Request 到 main/master → 仅构建 debug（更快反馈）
-#   · 打 tag v* → 构建 debug + release + 发布到 GitHub Releases
-# ========================================================================
 on:
   push:
     branches: [ main, master ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # 允许在 Actions 页面手动触发
+  workflow_dispatch:
 
-# 权限：写 Releases、写仓库内容
 permissions:
   contents: write
 
-# 环境变量：在所有 job 中共享
 env:
   JAVA_VERSION: "21"
   JAVA_DIST: "temurin"
   GRADLE_VERSION: "9.5.1"
-  MODULE: "app"
-  BUILD_DATE: ""  # 会在 job 启动时动态设置
 
-# ========================================================================
-# Jobs 定义
-#   · build-debug:    调试 APK（PR + push 都跑）
-#   · build-release:  发布 APK + AAB（push + tag 时跑，PR 跳过以节约时长）
-#   · publish-release: 打 tag 时发布到 GitHub Releases（依赖 build-release）
-# ========================================================================
 jobs:
 
-  # ──────────────────────────────────────────────────────────────────
-  # Job 1: 调试构建
-  # ──────────────────────────────────────────────────────────────────
   build-debug:
     name: "Debug APK 构建"
     runs-on: ubuntu-latest
@@ -46,33 +27,23 @@ jobs:
       - name: 📦 检出代码
         uses: actions/checkout@v4
 
-      - name: ☕ 设置 JDK ${{ env.JAVA_VERSION }}（含 Gradle 缓存）
+      - name: ☕ 设置 JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: ${{ env.JAVA_DIST }}
-          cache: gradle
 
       - name: 🤖 设置 Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: ⚙️ 校验 Gradle Wrapper 可执行
-        run: |
-          chmod +x ./gradlew
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "ERROR: gradle-wrapper.jar 不存在，请先在本地运行 'gradle wrapper'"
-            exit 1
-          fi
-          echo "✅ Gradle Wrapper 正常"
-          echo "BUILD_DATE=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
-
-      - name: 🚀 Gradle 缓存加速（官方 action）
+      - name: 🚀 安装 Gradle ${{ env.GRADLE_VERSION }} + 缓存
         uses: gradle/actions/setup-gradle@v4
         with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
       - name: 🔨 构建 Debug APK
-        run: set -o pipefail && ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: 🔍 定位产物
         id: find-artifact
@@ -82,54 +53,42 @@ jobs:
           echo "✅ 找到: $APK"
           ls -lh "$APK"
 
-      - name: 📤 上传 Debug APK 到 Actions 产物
+      - name: 📤 上传 Debug APK
         if: steps.find-artifact.outputs.apk-path != ''
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-${{ env.BUILD_DATE }}-${{ github.sha }}
+          name: app-debug-${{ github.sha }}
           path: ${{ steps.find-artifact.outputs.apk-path }}
           if-no-files-found: error
 
-  # ──────────────────────────────────────────────────────────────────
-  # Job 2: 发布构建（Release APK + AAB）
-  # ──────────────────────────────────────────────────────────────────
   build-release:
     name: "Release APK / AAB 构建"
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # PR 不跑 release 构建（节约时间）
     if: github.event_name != 'pull_request'
 
     steps:
       - name: 📦 检出代码
         uses: actions/checkout@v4
 
-      - name: ☕ 设置 JDK ${{ env.JAVA_VERSION }}（含 Gradle 缓存）
+      - name: ☕ 设置 JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: ${{ env.JAVA_DIST }}
-          cache: gradle
 
       - name: 🤖 设置 Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: ⚙️ 初始化 — 授予权限 / 设置构建时间
-        run: |
-          chmod +x ./gradlew
-          echo "BUILD_DATE=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
-          echo "GIT_SHORT_SHA=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
-
-      - name: 🔑 还原签名密钥（仅当 Secrets 存在时执行）
+      - name: 🔑 还原签名密钥
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         if: env.KEYSTORE_BASE64 != ''
         run: |
           echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
           echo "✅ release.keystore 已写入"
-          ls -lh app/release.keystore
 
-      - name: 📝 注入签名信息到 gradle.properties
+      - name: 📝 注入签名信息
         if: env.KEYSTORE_BASE64 != ''
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -140,37 +99,34 @@ jobs:
           KEY_ALIAS=${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
           PROPS_EOF
-          echo "✅ gradle.properties 已注入签名配置"
 
-      - name: 🚀 Gradle 缓存加速（官方 action）
+      - name: 🚀 安装 Gradle ${{ env.GRADLE_VERSION }} + 缓存
         uses: gradle/actions/setup-gradle@v4
         with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: ${{ startsWith(github.ref, 'refs/tags/') == false && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
       - name: 🔨 构建 Release APK
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: gradle assembleRelease --no-daemon --stacktrace
 
-      - name: 📦 构建 Release AAB（上架 Google Play）
-        run: ./gradlew bundleRelease --no-daemon --stacktrace
+      - name: 📦 构建 Release AAB
+        run: gradle bundleRelease --no-daemon --stacktrace
 
-      - name: 🔍 定位所有发布产物
+      - name: 🔍 定位产物
         id: find-artifacts
         run: |
           RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           RELEASE_AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -1)
           echo "release-apk=$RELEASE_APK" >> $GITHUB_OUTPUT
           echo "release-aab=$RELEASE_AAB" >> $GITHUB_OUTPUT
-          echo "=== 产物清单 ==="
           [ -n "$RELEASE_APK" ] && ls -lh "$RELEASE_APK"
           [ -n "$RELEASE_AAB" ] && ls -lh "$RELEASE_AAB"
-          # 生成映射文件（方便 Releases 展示）
-          echo "构建信息: ${{ github.sha }} @ $(date -u '+%Y-%m-%d %H:%M:%S UTC')" > app/build/outputs/build-info.txt
 
       - name: 📤 上传 Release APK
         if: steps.find-artifacts.outputs.release-apk != ''
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk-${{ env.BUILD_DATE }}-${{ env.GIT_SHORT_SHA }}
+          name: app-release-apk-${{ github.sha }}
           path: ${{ steps.find-artifacts.outputs.release-apk }}
           if-no-files-found: error
 
@@ -178,11 +134,10 @@ jobs:
         if: steps.find-artifacts.outputs.release-aab != ''
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-aab-${{ env.BUILD_DATE }}-${{ env.GIT_SHORT_SHA }}
+          name: app-release-aab-${{ github.sha }}
           path: ${{ steps.find-artifacts.outputs.release-aab }}
           if-no-files-found: error
 
-      # —— 产物存到一个固定路径，供下一个 job 发布使用 ——
       - name: 🗃️ 归集发布产物
         run: |
           mkdir -p release-artifacts
@@ -190,30 +145,27 @@ jobs:
           cp ${{ steps.find-artifacts.outputs.release-aab }} release-artifacts/ || true
           ls -lh release-artifacts/
 
-      - name: 🔗 上传发布产物（供 publish-release job 使用）
+      - name: 🔗 上传发布产物（供 publish job 使用）
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts-${{ env.GIT_SHORT_SHA }}
+          name: release-artifacts-${{ github.sha }}
           path: release-artifacts/*
           retention-days: 7
 
-  # ──────────────────────────────────────────────────────────────────
-  # Job 3: 自动发布到 GitHub Releases（仅打 tag 时触发）
-  # ──────────────────────────────────────────────────────────────────
   publish-release:
     name: "发布到 GitHub Releases"
-    needs: build-release  # 等 build-release 成功
+    needs: build-release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: 📦 检出代码（读取 commit 信息生成 release note）
+      - name: 📦 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 拉取完整历史，用于生成 changelog
+          fetch-depth: 0
 
-      - name: 📥 下载 build-release 的发布产物
+      - name: 📥 下载发布产物
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
@@ -225,28 +177,22 @@ jobs:
           echo "tag-name=$TAG_NAME" >> $GITHUB_OUTPUT
           cat > release-notes.md <<EOF
           # $TAG_NAME
-          
+
           **自动构建 — Android AI-Chat 应用**
-          
+
           | 信息 | 内容 |
           | --- | --- |
           | 提交 | ${{ github.sha }} |
           | 分支 | ${{ github.ref_name }} |
           | 构建时间 | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |
-          | Gradle | ${{ env.GRADLE_VERSION }} |
-          | JDK | ${{ env.JAVA_VERSION }} (${{ env.JAVA_DIST }}) |
-          
-          ## 下载
-          
-          - **app-release.apk** — Android 安装包（直接安装）
-          - **app-release.aab** — Android App Bundle（用于 Google Play 上架）
-          
-          > ⚠️ 首次安装需在系统设置中允许"未知来源"。
-          EOF
-          echo "--- 预览 ---"
-          cat release-notes.md
 
-      - name: 🚀 创建 GitHub Release（附 APK + AAB）
+          ## 下载
+
+          - **app-release.apk** — Android 安装包
+          - **app-release.aab** — Android App Bundle
+          EOF
+
+      - name: 🚀 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           body_path: release-notes.md
