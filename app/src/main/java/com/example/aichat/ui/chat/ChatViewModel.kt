@@ -78,8 +78,8 @@ class ChatViewModel @Inject constructor(
     val currentConversationId: StateFlow<String?> = _currentConversationId.asStateFlow()
     private var historyForApi = java.util.Collections.synchronizedList(mutableListOf<Pair<String, String>>())
 
-    // 草稿管理：conversationId → draft text
-    private val drafts = mutableMapOf<String, String>()
+    // 草稿管理：conversationId → draft text（ConcurrentHashMap 保证线程安全）
+    private val drafts = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     // 生成失败标记（用于显示重新生成按钮）
     private val _lastGenerationFailed = MutableStateFlow(false)
@@ -354,18 +354,20 @@ class ChatViewModel @Inject constructor(
 
     /** 删除指定消息 */
     fun deleteMessage(messageId: Long) {
-        val msg = _messages.value.firstOrNull { it.id == messageId } ?: run {
+        val currentMessages = _messages.value
+        val msgIndex = currentMessages.indexOfFirst { it.id == messageId }
+        if (msgIndex < 0) {
             Log.w(TAG, "deleteMessage: message $messageId not found")
             return
         }
-        // 先计算 historyForApi 中的索引（在移除前）
-        val historyIdx = _messages.value
-            .filter { it.role == "user" || it.role == "assistant" }
-            .indexOfFirst { it.id == messageId }
+        // 在 _messages 中计算该消息在 (user|assistant) 子序列中的索引
+        val historyIdx = currentMessages
+            .take(msgIndex + 1)
+            .count { it.role == "user" || it.role == "assistant" } - 1
 
-        _messages.value = _messages.value.filter { it.id != messageId }
+        _messages.value = currentMessages.filter { it.id != messageId }
 
-        if (historyIdx >= 0 && historyIdx < historyForApi.size) {
+        if (historyIdx in 0 until historyForApi.size) {
             historyForApi = java.util.Collections.synchronizedList(
                 historyForApi.toMutableList().also { it.removeAt(historyIdx) }
             )
@@ -379,34 +381,40 @@ class ChatViewModel @Inject constructor(
 
     /** 重新生成最后一条助手消息 */
     fun regenerateLastAssistant() {
-        val lastAssistant = _messages.value.lastOrNull { it.role == "assistant" } ?: run {
+        val currentMessages = _messages.value
+        val lastAssistant = currentMessages.lastOrNull { it.role == "assistant" } ?: run {
             Log.w(TAG, "regenerateLastAssistant: no assistant message found")
             return
         }
-        // 移除最后的 assistant 消息
-        _messages.value = _messages.value.filter { it.id != lastAssistant.id }
-        historyForApi = java.util.Collections.synchronizedList(
-            historyForApi.toMutableList().also { list ->
-                val lastIdx = list.indexOfLast { it.first == "assistant" && it.second == lastAssistant.content }
-                if (lastIdx >= 0) list.removeAt(lastIdx)
-            }
-        )
+        val assistantIdx = currentMessages.indexOfLast { it.id == lastAssistant.id }
+        // 在 (user|assistant) 子序列中的索引
+        val assistantHistoryIdx = currentMessages
+            .take(assistantIdx + 1)
+            .count { it.role == "user" || it.role == "assistant" } - 1
+
+        // 找到最后一条用户消息
+        val lastUserMsg = currentMessages.lastOrNull { it.role == "user" }
+        val userIdx = lastUserMsg?.let { currentMessages.indexOfLast { m -> m.id == it.id } } ?: -1
+        val userHistoryIdx = if (userIdx >= 0) {
+            currentMessages.take(userIdx + 1).count { it.role == "user" || it.role == "assistant" } - 1
+        } else -1
+
+        // 从 historyForApi 移除 assistant 和 user（按索引从后往前删除）
+        val newHistory = historyForApi.toMutableList()
+        if (assistantHistoryIdx in 0 until newHistory.size) newHistory.removeAt(assistantHistoryIdx)
+        if (userHistoryIdx in 0 until newHistory.size) newHistory.removeAt(userHistoryIdx)
+        historyForApi = java.util.Collections.synchronizedList(newHistory)
+
+        // 从 messages 移除
+        _messages.value = currentMessages.filter { it.id != lastAssistant.id && it.id != lastUserMsg?.id }
+
         viewModelScope.launch {
             runCatching { chatRepository.deleteMessageById(lastAssistant.id) }
+            lastUserMsg?.let { runCatching { chatRepository.deleteMessageById(it.id) } }
         }
 
-        // 找到最后一条用户消息重新发送
-        val lastUserMsg = _messages.value.lastOrNull { it.role == "user" }
         if (lastUserMsg != null) {
             Log.d(TAG, "Regenerating from user message: '${lastUserMsg.content.take(50)}...'")
-            // 从 historyForApi 移除最后的 user 消息，sendMessage 会重新添加
-            historyForApi = java.util.Collections.synchronizedList(
-                historyForApi.toMutableList().also { list ->
-                    val lastIdx = list.indexOfLast { it.first == "user" && it.second == lastUserMsg.content }
-                    if (lastIdx >= 0) list.removeAt(lastIdx)
-                }
-            )
-            _messages.value = _messages.value.filter { it.id != lastUserMsg.id }
             sendMessage(lastUserMsg.content)
         } else {
             Log.w(TAG, "regenerateLastAssistant: no user message to regenerate from")

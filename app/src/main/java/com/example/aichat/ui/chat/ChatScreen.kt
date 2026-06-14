@@ -272,8 +272,8 @@ fun ChatScreen(
             DropdownMenuItem(
                 text = { Text("复制") },
                 onClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("message", msg.content))
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    clipboard?.setPrimaryClip(ClipData.newPlainText("message", msg.content))
                     showMsgMenu = false
                     selectedMessage = null
                 },

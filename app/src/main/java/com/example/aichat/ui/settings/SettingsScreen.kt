@@ -546,10 +546,13 @@ private fun formatSize(size: Long): String {
 
 private fun clearCache(context: Context) {
     try {
-        context.cacheDir.deleteRecursively()
-        // 清理相机临时文件
-        val tempDir = File(context.cacheDir, "camera")
-        if (tempDir.exists()) tempDir.deleteRecursively()
+        // 先清理子目录再删除 cacheDir 自身
+        val cameraDir = File(context.cacheDir, "camera")
+        if (cameraDir.exists()) cameraDir.deleteRecursively()
+        val updatesDir = File(context.cacheDir, "updates")
+        if (updatesDir.exists()) updatesDir.deleteRecursively()
+        // 删除 cacheDir 下所有文件（不删除 cacheDir 本身，避免系统重建延迟）
+        context.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
         Log.d("SettingsScreen", "Cache cleared successfully")
     } catch (e: Exception) {
         Log.w("SettingsScreen", "Failed to clear cache: ${e.message}")

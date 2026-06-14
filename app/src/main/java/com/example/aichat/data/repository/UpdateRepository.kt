@@ -97,10 +97,11 @@ class UpdateRepository @Inject constructor(
         _downloadProgress.value = 0f
 
         try {
-            val apkDir = File(context.externalCacheDir, "updates").also { it.mkdirs() }
+            val cacheDir = context.externalCacheDir ?: context.cacheDir
+            val apkDir = File(cacheDir, "updates").also { it.mkdirs() }
             val apkFile = File(apkDir, asset.name)
-            // 如果已下载过同版本 APK，直接返回
-            if (apkFile.exists() && apkFile.length() == asset.size) {
+            // 如果已下载过同版本 APK 且文件完整，直接返回
+            if (apkFile.exists() && apkFile.length() == asset.size && isApkValid(apkFile)) {
                 Log.d(TAG, "APK 已缓存: ${apkFile.absolutePath}")
                 _downloadProgress.value = 1f
                 return@withContext apkFile
@@ -158,6 +159,20 @@ class UpdateRepository @Inject constructor(
             Log.d(TAG, "已触发 APK 安装: ${apkFile.name}")
         } catch (e: Exception) {
             Log.w(TAG, "触发安装失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 验证文件是否为有效 APK（检查 ZIP 魔数 PK\x03\x04）。
+     */
+    private fun isApkValid(file: File): Boolean {
+        return try {
+            file.inputStream().use { input ->
+                val magic = ByteArray(4)
+                input.read(magic) == 4 && magic[0] == 0x50.toByte() && magic[1] == 0x4B.toByte()
+            }
+        } catch (e: Exception) {
+            false
         }
     }
 
