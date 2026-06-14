@@ -82,7 +82,7 @@ fun ChatScreen(
     // 待发送图片（从图片选择器获取的 content:// URI 字符串列表）
     val pendingImageUrls by chatViewModel.pendingImageUrls.collectAsState()
 
-    // —— 图片选择器（Android 官方 Photo Picker）
+    // —— 图片选择器（Android 官方 Photo Picker）—— 在此处注册，供 Photo 按钮调用
     val imagePicker = rememberImagePicker(onPicked = { newUris ->
         chatViewModel.addImageUrls(newUris)
     })
@@ -90,6 +90,7 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     var drawerOpen by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
+    var showPlusSheet by remember { mutableStateOf(false) }
     var activeConversationId by remember { mutableStateOf<String?>(null) }
 
     // 快速切换模型
@@ -143,8 +144,7 @@ fun ChatScreen(
                 onStop = { chatViewModel.stopGeneration() },
                 onMenuClick = { drawerOpen = true },
                 onModelClick = { showModelSelector = true },
-                onAddImage = { imagePicker.pickImages(maxItems = 9) },
-                onRemoveImage = { chatViewModel.removeImageUrl(it) }
+                onOpenPlusSheet = { showPlusSheet = true }
             )
             Surface(
                 color = Color.Black.copy(alpha = 0.4f),
@@ -199,9 +199,20 @@ fun ChatScreen(
             onStop = { chatViewModel.stopGeneration() },
             onMenuClick = { drawerOpen = true },
             onModelClick = { showModelSelector = true },
-            onAddImage = { imagePicker.pickImages(maxItems = 9) },
-            onRemoveImage = { chatViewModel.removeImageUrl(it) }
+            onOpenPlusSheet = { showPlusSheet = true }
         )
+    }
+
+    // —— Plus 二级面板（点击 + 触发）
+    if (showPlusSheet) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            PlusBottomSheet(
+                onDismiss = { showPlusSheet = false },
+                onPickPhoto = { imagePicker.pickImages(maxItems = 9) },
+                jsonMode = chatViewModel.jsonMode.collectAsState().value,
+                onToggleJsonMode = { chatViewModel.toggleJsonMode() }
+            )
+        }
     }
 
     if (showModelSelector) {
@@ -271,11 +282,13 @@ private fun MainChatContent(
     onStop: () -> Unit,
     onMenuClick: () -> Unit,
     onModelClick: () -> Unit,
-    onAddImage: () -> Unit,
-    onRemoveImage: (String) -> Unit
+    onOpenPlusSheet: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val chatViewModel: ChatViewModel = hiltViewModel()
+    val thinkMode = chatViewModel.thinkMode.collectAsState().value
+    val searchMode = chatViewModel.searchMode.collectAsState().value
+    val jsonMode = chatViewModel.jsonMode.collectAsState().value
 
     Scaffold(
         topBar = {
@@ -291,14 +304,18 @@ private fun MainChatContent(
                 onInputChange = onInputChange,
                 isGenerating = isGenerating,
                 currentModel = currentModel,
-                jsonMode = chatViewModel.jsonMode.collectAsState().value,
+                thinkMode = thinkMode,
+                searchMode = searchMode,
+                jsonMode = jsonMode,
+                onToggleThink = { chatViewModel.toggleThink() },
+                onToggleSearch = { chatViewModel.toggleSearch() },
                 onToggleJsonMode = { chatViewModel.toggleJsonMode() },
                 pendingImageUrls = pendingImageUrls,
-                onRemoveImage = onRemoveImage,
+                onRemoveImage = { url -> chatViewModel.removeImageUrl(url) },
                 onSend = onSend,
                 onStop = onStop,
                 onModelClick = onModelClick,
-                onAddImage = onAddImage
+                onOpenPlusSheet = onOpenPlusSheet
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -326,51 +343,123 @@ private fun MainChatContent(
     }
 }
 
+/* ==========================================================================
+ * ChatInputBar —— 统一卡片式输入栏
+ *
+ * ┌────────────────────────────────────────────────────────────┐
+ * │  [Think✓] [Search 🌐]           [Nemotron Nano ▼] [+] [🎤] │
+ * │  ┌──────────────────────────────────────────────────────┐  │
+ * │  │  Type a message or hold to speak            [→]      │  │
+ * │  └──────────────────────────────────────────────────────┘  │
+ * │  [ image thumbnail row if any ]                            │
+ * └────────────────────────────────────────────────────────────┘
+ *
+ *  · 左侧：Think / Search（模式开关，默认常驻可见，场景化）
+ *  · 右侧：模型选择 / +（展开二级面板）/ 语音
+ *  · 下层：文本输入 + 发送按钮
+ *  · 最下层：已选图片缩略图（发送前可移除）
+ * ========================================================================== */
 @Composable
 private fun ChatInputBar(
     inputText: String,
     onInputChange: (String) -> Unit,
     isGenerating: Boolean,
     currentModel: String,
+    thinkMode: Boolean,
+    searchMode: Boolean,
     jsonMode: Boolean,
+    onToggleThink: () -> Unit,
+    onToggleSearch: () -> Unit,
     onToggleJsonMode: () -> Unit,
     pendingImageUrls: List<String>,
     onRemoveImage: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
     onModelClick: () -> Unit,
-    onAddImage: () -> Unit
+    onOpenPlusSheet: () -> Unit
 ) {
     Column {
         Divider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            // —— 模型切换按钮
-            Surface(onClick = onModelClick, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.padding(end = 4.dp)) {
-                Text(friendlyModelName(currentModel), modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 13.sp)
-            }
-            // —— JSON 模式切换
-            Surface(onClick = onToggleJsonMode, shape = RoundedCornerShape(18.dp), color = if (jsonMode) Primary else MaterialTheme.colorScheme.surfaceVariant) {
-                Text(text = if (jsonMode) "{ } JSON" else "文本", color = if (jsonMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            }
-            // —— 添加图片按钮
-            Surface(onClick = onAddImage, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("+", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(4.dp))
-                    Text("图", fontSize = 13.sp)
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+
+                // —— 顶部一行：左 (Think / Search) + 右 (模型 / + / 语音)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // —— 左侧：Think / Search
+                    ModeChip(label = "Think", isOn = thinkMode, onClick = onToggleThink, icon = "✓")
+                    ModeChip(label = "Search", isOn = searchMode, onClick = onToggleSearch, icon = "🌐")
+
+                    // —— 填充空白（把右侧挤到最右端）
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // —— 右侧：模型 / + / 语音
+                    ModeChip(label = friendlyModelName(currentModel), isOn = false, onClick = onModelClick, icon = "", isModelChip = true)
+                    Surface(
+                        onClick = onOpenPlusSheet,
+                        shape = CircleShape,
+                        color = if (jsonMode || pendingImageUrls.isNotEmpty()) Primary else MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("+", color = if (jsonMode || pendingImageUrls.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // —— 底部：文本输入 + 发送按钮
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = inputText,
+                        onValueChange = onInputChange,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp
+                        ),
+                        decorationBox = { innerTextField ->
+                            if (inputText.isEmpty()) {
+                                val tip = buildString {
+                                    if (pendingImageUrls.isNotEmpty()) append("描述这些图片…")
+                                    else if (thinkMode) append("深度思考中，请输入…")
+                                    else if (searchMode) append("联网搜索模式，请输入…")
+                                    else append("Type a message or hold to speak")
+                                }
+                                Text(tip, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 14.sp)
+                            }
+                            innerTextField()
+                        }
+                    )
+                    Surface(
+                        onClick = if (isGenerating) onStop else onSend,
+                        shape = CircleShape,
+                        color = if (isGenerating) Color(0xFFD32F2F) else Primary,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            if (isGenerating) {
+                                Icon(Icons.Default.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(16.dp))
+                            } else {
+                                Text("→", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // —— 已选图片缩略图预览
+        // —— 已选图片缩略图预览（位于卡片下方，独立一行）
         if (pendingImageUrls.isNotEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 pendingImageUrls.take(6).forEach { url ->
@@ -387,7 +476,6 @@ private fun ChatInputBar(
                                 contentScale = ContentScale.Crop
                             )
                         }
-                        // 右上角关闭按钮
                         Surface(onClick = { onRemoveImage(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(18.dp).align(Alignment.TopEnd)) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -397,31 +485,103 @@ private fun ChatInputBar(
                 }
             }
         }
+    }
+}
 
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = onInputChange,
-                placeholder = { Text(text = if (jsonMode) "请输入，回复将为 JSON..." else if (pendingImageUrls.isNotEmpty()) "描述这些图片..." else "输入消息...", fontSize = 14.sp) },
-                modifier = Modifier.weight(1f).padding(end = 12.dp).height(56.dp),
-                shape = RoundedCornerShape(22.dp),
-                maxLines = 4
+/**
+ * 模式开关 Chip —— Think / Search 等通用按钮样式
+ */
+@Composable
+private fun ModeChip(
+    label: String,
+    isOn: Boolean,
+    onClick: () -> Unit,
+    icon: String = "",
+    isModelChip: Boolean = false
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = when {
+            isOn && !isModelChip -> Primary
+            isModelChip && !isOn -> MaterialTheme.colorScheme.surface
+            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (icon.isNotEmpty()) {
+                Text(icon, fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp), color = if (isOn) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                label,
+                fontSize = 12.sp,
+                fontWeight = if (isOn || isModelChip) FontWeight.Medium else FontWeight.Normal,
+                color = if (isOn && !isModelChip) Color.White else MaterialTheme.colorScheme.onSurface
             )
-            Surface(
-                onClick = if (isGenerating) onStop else onSend,
-                shape = CircleShape,
-                color = if (isGenerating) Color(0xFFD32F2F) else Primary,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    if (isGenerating) {
-                        Icon(Icons.Default.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(18.dp))
-                    } else {
-                        Text("→", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    }
+        }
+    }
+}
+
+/* ==========================================================================
+ * PlusBottomSheet —— 点击 + 弹出的底部半屏面板
+ *
+ *  放置低频但重要的扩展操作：
+ *   · 📷 Camera     —— 拍照（系统相机 Intent）
+ *   · 🖼️ Photo      —— 从相册选图（PhotoPicker）
+ *   · 📄 Document   —— 文件选择
+ *   · { } JSON      —— 结构化输出模式开关
+ *
+ *  Note: Think / Search 属于发送时的"模式"，放在输入栏顶层，
+ *        不因扩展操作而丢失当前模式上下文。
+ * ========================================================================== */
+@Composable
+fun PlusBottomSheet(
+    onDismiss: () -> Unit,
+    onPickPhoto: () -> Unit,
+    jsonMode: Boolean,
+    onToggleJsonMode: () -> Unit
+) {
+    Surface(color = Color.Black.copy(alpha = 0.45f), modifier = Modifier.fillMaxSize().clickable(onClick = onDismiss)) {}
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        Surface(
+            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Box(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp), contentAlignment = Alignment.Center) {
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f), modifier = Modifier.size(38.dp, 4.dp)) {}
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    SheetAction(icon = "📷", label = "Camera", onClick = { /* TODO: Camera intent */ onDismiss() })
+                    SheetAction(icon = "🖼️", label = "Photo", onClick = { onPickPhoto(); onDismiss() })
+                    SheetAction(icon = "📄", label = "Document", onClick = { /* TODO: file picker */ onDismiss() })
+                }
+                Divider(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("{ } JSON 结构化输出", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                    androidx.compose.material3.Switch(checked = jsonMode, onCheckedChange = { onToggleJsonMode() })
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SheetAction(icon: String, label: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.size(56.dp)) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Text(icon, fontSize = 24.sp)
+            }
+        }
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 6.dp))
     }
 }
 

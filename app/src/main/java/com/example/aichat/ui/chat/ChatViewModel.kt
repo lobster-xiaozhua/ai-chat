@@ -44,6 +44,14 @@ class ChatViewModel @Inject constructor(
     private val _jsonMode = MutableStateFlow(false)
     val jsonMode: StateFlow<Boolean> = _jsonMode.asStateFlow()
 
+    // —— Think 模式（深度推理：更慢、更全面；通过 system prompt + temperature 传递）
+    private val _thinkMode = MutableStateFlow(false)
+    val thinkMode: StateFlow<Boolean> = _thinkMode.asStateFlow()
+
+    // —— Search 模式（联网/检索增强：通过 system prompt 告知模型可以查询上下文）
+    private val _searchMode = MutableStateFlow(false)
+    val searchMode: StateFlow<Boolean> = _searchMode.asStateFlow()
+
     // 待发送图片附件（content:// URI 字符串列表）
     private val _pendingImageUrls = MutableStateFlow<List<String>>(emptyList())
     val pendingImageUrls: StateFlow<List<String>> = _pendingImageUrls.asStateFlow()
@@ -82,6 +90,10 @@ class ChatViewModel @Inject constructor(
     /* ---------- 对外操作：JSON 模式 ---------- */
     fun setJsonMode(on: Boolean) { _jsonMode.value = on }
     fun toggleJsonMode() { _jsonMode.value = !_jsonMode.value }
+
+    /* ---------- 对外操作：Think / Search 模式 ---------- */
+    fun toggleThink() { _thinkMode.value = !_thinkMode.value }
+    fun toggleSearch() { _searchMode.value = !_searchMode.value }
 
     /* ---------- 对外操作：图片附件 ---------- */
 
@@ -175,7 +187,9 @@ class ChatViewModel @Inject constructor(
                     apiKey = apiKey,
                     temperature = temperature,
                     jsonMode = _jsonMode.value,
-                    userImageUrls = dataUriList
+                    userImageUrls = dataUriList,
+                    thinkMode = _thinkMode.value,
+                    searchMode = _searchMode.value
                 ).collect { token ->
                     builder.append(token)
                     tokensSinceEmit++

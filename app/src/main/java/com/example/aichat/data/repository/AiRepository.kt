@@ -91,14 +91,42 @@ class AiRepository @Inject constructor(
         temperature: Double,
         jsonMode: Boolean = false,
         enableTools: Boolean = false,
-        userImageUrls: List<String> = emptyList()
+        userImageUrls: List<String> = emptyList(),
+        thinkMode: Boolean = false,
+        searchMode: Boolean = false
     ): Flow<String> = channelFlow {
 
         val url = buildChatCompletionsUrl(baseUrl)
         val auth = "Bearer $apiKey"
         val registeredTools = if (enableTools) toolRegistry.list() else null
 
-        var currentMessages = buildMessageList(systemPrompt, messages, userImageUrls)
+        // —— 根据模式调整 system prompt + temperature：
+        //    · Think → 在 system prompt 追加"逐步推理"提示；temperature 稍高
+        //    · Search → 在 system prompt 追加"基于检索上下文回答"提示
+        //    · Think 关闭 → 更简洁 / 直给回答
+        val effectivePrompt = buildString {
+            append(systemPrompt.ifBlank { "You are a helpful, concise assistant." })
+            if (thinkMode) {
+                append(" Before answering, break the problem into logical steps, show your reasoning, and then provide a final, well-supported answer. Take your time—accuracy matters more than speed.")
+            } else {
+                append(" Keep your answer concise and to the point.")
+            }
+            if (searchMode) {
+                append(" The user has enabled search / retrieval mode; frame your answer as if consulting updated knowledge, note uncertainties where applicable.")
+            }
+            if (jsonMode) {
+                append(" Always return a valid JSON object with clear key fields, never plain prose.")
+            }
+        }
+
+        // Think 模式提高 temperature（允许更广的推理空间）
+        val effectiveTemp = when {
+            thinkMode && temperature <= 0.2 -> temperature + 0.4
+            thinkMode -> (temperature + 0.2).coerceAtMost(2.0)
+            else -> temperature
+        }
+
+        var currentMessages = buildMessageList(effectivePrompt, messages, userImageUrls)
         var depth = 0
         val maxDepth = 3
 
@@ -108,7 +136,7 @@ class AiRepository @Inject constructor(
             val request = ChatCompletionRequest(
                 model = model,
                 messages = currentMessages,
-                temperature = temperature,
+                temperature = effectiveTemp,
                 stream = true,
                 responseFormat = if (jsonMode) ResponseFormat("json_object") else null,
                 tools = registeredTools,
