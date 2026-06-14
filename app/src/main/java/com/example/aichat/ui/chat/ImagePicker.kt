@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.example.aichat.util.createImageFileUri
@@ -61,6 +62,9 @@ fun rememberImagePicker(onPicked: (List<String>) -> Unit): ImagePickerLauncher {
 
     // —— 拍照：TakePicture，返回 Boolean 表示是否成功；成功后使用预先创建的 URI
     val cameraOutput = remember { mutableMapOf<String, Pair<Uri, java.io.File>>() }
+    DisposableEffect(Unit) {
+        onDispose { cameraOutput.clear() }
+    }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->

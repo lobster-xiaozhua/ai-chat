@@ -116,8 +116,17 @@ fun Uri.getImageFileName(context: Context): String {
  */
 private suspend fun Uri.compressToJpegBytes(context: Context, maxKb: Int): ByteArray? =
     withContext(Dispatchers.IO) {
+        // 先用 inJustDecodeBounds 获取原图尺寸，计算采样率避免 OOM
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(this@compressToJpegBytes)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        }
+        val targetSize = 2048
+        val sampleSize = calculateInSampleSize(bounds, targetSize, targetSize)
+        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+
         val input = contentUriToInputStream(context) ?: return@withContext null
-        val original = input.use { BitmapFactory.decodeStream(it) } ?: return@withContext null
+        val original = input.use { BitmapFactory.decodeStream(it, null, decodeOptions) } ?: return@withContext null
 
         // 先尝试 quality=80 的直接 JPEG 压缩
         var bytes = original.encodeToJpeg(80)

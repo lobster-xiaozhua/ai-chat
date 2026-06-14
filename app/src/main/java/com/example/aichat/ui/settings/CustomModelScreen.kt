@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +54,7 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
     var modelName by remember { mutableStateOf(currentModel) }
     var apiKey by remember { mutableStateOf(currentKey) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     fun validate(): Boolean {
         val url = baseUrl.trim().lowercase(Locale.ROOT)
@@ -169,8 +171,11 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                     viewModel.setBaseUrl(baseUrl.trim())
                     viewModel.setDefaultModel(modelName.trim())
                     viewModel.setApiKey(apiKey.trim())
-                    // 给 DataStore 一帧时间完成写入再返回，避免设置丢失
-                    onBack()
+                    // 延迟一帧返回，确保 DataStore 写入完成
+                    coroutineScope.launch {
+                        kotlinx.coroutines.delay(100)
+                        onBack()
+                    }
                 },
                 shape = RoundedCornerShape(22.dp),
                 color = Primary,

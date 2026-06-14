@@ -62,6 +62,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -265,7 +267,6 @@ fun ChatScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainChatContent(
     messages: List<Message>,
@@ -382,7 +383,7 @@ private fun ChatInputBar(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        Divider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
+        Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -447,7 +448,7 @@ private fun ChatInputBar(
                         onClick = onOpenPlusSheet,
                         shape = CircleShape,
                         color = if (jsonMode || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) Primary else MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(30.dp).semantics { contentDescription = "更多选项" }
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("+", color = if (jsonMode || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -476,9 +477,9 @@ private fun ChatInputBar(
                                 contentScale = ContentScale.Crop
                             )
                         }
-                        Surface(onClick = { onRemoveImage(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(18.dp).align(Alignment.TopEnd)) {
+                        Surface(onClick = { onRemoveImage(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(18.dp).align(Alignment.TopEnd).semantics { contentDescription = "移除图片" }) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, softWrap = false)
+                                Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -503,7 +504,7 @@ private fun ChatInputBar(
                         ) {
                             Text("📄", fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
                             Text(text = name.take(20), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Surface(onClick = { onRemoveDocument(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(16.dp).padding(start = 4.dp)) {
+                            Surface(onClick = { onRemoveDocument(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(16.dp).padding(start = 4.dp).semantics { contentDescription = "移除文档" }) {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text("×", color = Color.White, fontSize = 10.sp)
                                 }
@@ -575,7 +576,7 @@ fun PlusBottomSheet(
                     SheetAction(icon = "🖼️", label = "Photo", onClick = onPickPhoto)
                     SheetAction(icon = "📄", label = "Document", onClick = onPickDocument)
                 }
-                Divider(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+                Divider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 4.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("{ } JSON 结构化输出", modifier = Modifier.weight(1f), fontSize = 14.sp)
                     androidx.compose.material3.Switch(checked = jsonMode, onCheckedChange = { onToggleJsonMode() })
@@ -589,7 +590,7 @@ fun PlusBottomSheet(
 private fun SheetAction(icon: String, label: String, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp)
+        modifier = Modifier.clickable(onClick = onClick, onClickLabel = label).padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.size(56.dp)) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -637,7 +638,7 @@ private fun ConversationDrawer(
             Text("历史对话", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             IconButton(onClick = onNewChat) { Icon(Icons.Default.Add, contentDescription = "新建对话", tint = Primary) }
         }
-        Divider(color = MaterialTheme.colorScheme.surfaceVariant)
+        Divider(color = MaterialTheme.colorScheme.outlineVariant)
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(conversations, key = { it.id }) { conv ->
                 val isActive = conv.id == activeConversationId
@@ -701,7 +702,7 @@ private fun ConversationDrawer(
             }
         }
 
-        Divider(color = MaterialTheme.colorScheme.surfaceVariant)
+        Divider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(modifier = Modifier.fillMaxWidth().clickable { onNavigateToAccount() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = Primary, modifier = Modifier.size(36.dp)) {
                 Box(contentAlignment = Alignment.Center) { Text("U", color = Color.White, fontWeight = FontWeight.Bold) }

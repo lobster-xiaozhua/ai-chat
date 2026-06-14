@@ -131,6 +131,7 @@ class EmbeddingsRepository @Inject constructor(
         if (apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()) {
             runCatching { embedRemote(text, baseUrl, model, apiKey) }
                 .onSuccess { return it }
+                .onFailure { android.util.Log.w("EmbeddingsRepo", "远程嵌入失败，使用伪嵌入", it) }
         }
         // 伪嵌入：对文本字符做简单哈希投影，产生稳定的稠密向量
         return pseudoEmbed(text)
@@ -177,11 +178,14 @@ class EmbeddingsRepository @Inject constructor(
 
     /** 快速余弦相似度（Float 原生运算，避免 Double 转换） */
     private fun cosine(a: FloatArray, b: FloatArray): Float {
+        if (a.size != b.size) {
+            android.util.Log.w("EmbeddingsRepo", "维度不匹配: a=${a.size}, b=${b.size}")
+            return 0f
+        }
         var dot = 0f
         var na = 0f
         var nb = 0f
-        val n = minOf(a.size, b.size)
-        for (i in 0 until n) {
+        for (i in a.indices) {
             val av = a[i]
             val bv = b[i]
             dot += av * bv
