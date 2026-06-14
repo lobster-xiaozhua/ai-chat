@@ -30,22 +30,33 @@ android {
     }
 
     // release 签名配置：优先从 gradle.properties（或 CI 通过 -P 注入）读取，
-    // 未配置时回退到 debug keystore，方便本地直接 assembleRelease 不报错。
-    //    · KEYSTORE_FILE      （相对路径或绝对路径）
-    //    · KEYSTORE_PASSWORD  （密钥库密码）
-    //    · KEY_ALIAS          （密钥别名）
-    //    · KEY_PASSWORD       （密钥密码）
+    // 未配置时回退到 AGP 自动生成的 debug keystore（所有 Android 环境都会产生）。
+    //    · KEYSTORE_FILE       （相对路径或绝对路径）
+    //    · KEYSTORE_PASSWORD   （密钥库密码）
+    //    · KEY_ALIAS           （密钥别名）
+    //    · KEY_PASSWORD        （密钥密码）
     signingConfigs {
         create("release") {
-            val defaultStore = "${System.getenv("HOME")}/.android/debug.keystore"
-            val storeFileProp = (project.properties["KEYSTORE_FILE"] as? String)?.takeIf { it.isNotBlank() } ?: defaultStore
-            val storePassProp = (project.properties["KEYSTORE_PASSWORD"] as? String)?.takeIf { it.isNotBlank() } ?: "android"
-            val keyAliasProp = (project.properties["KEY_ALIAS"] as? String)?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
-            val keyPassProp = (project.properties["KEY_PASSWORD"] as? String)?.takeIf { it.isNotBlank() } ?: "android"
-            this.storeFile = java.io.File(storeFileProp)
-            this.storePassword = storePassProp
-            this.keyAlias = keyAliasProp
-            this.keyPassword = keyPassProp
+            val keystoreFromProps = (project.properties["KEYSTORE_FILE"] as? String)?.takeIf { it.isNotBlank() }
+            if (keystoreFromProps != null && java.io.File(keystoreFromProps).exists()) {
+                // —— 显式提供了 keystore —— 用用户提供的签名信息
+                storeFile = java.io.File(keystoreFromProps)
+                storePassword = (project.properties["KEYSTORE_PASSWORD"] as? String) ?: ""
+                keyAlias = (project.properties["KEY_ALIAS"] as? String) ?: ""
+                keyPassword = (project.properties["KEY_PASSWORD"] as? String) ?: ""
+            } else {
+                // —— fallback：AGP 自动生成的 debug keystore（任何 Android SDK 环境都存在）
+                val debugStore = java.io.File("${System.getenv("HOME")}/.android/debug.keystore")
+                if (debugStore.exists()) {
+                    storeFile = debugStore
+                    storePassword = "android"
+                    keyAlias = "androiddebugkey"
+                    keyPassword = "android"
+                } else {
+                    // 终极 fallback：让 release 用 debug signingConfig，AGP 会处理
+                    println("[signing] 未找到 release keystore，将使用 debug 签名")
+                }
+            }
         }
     }
 
@@ -53,7 +64,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            // 首选 release 签名；如未找到，则回退到 debug 签名（避免 CI 上因缺密钥而失败）
+            signingConfig = signingConfigs.findByName("release")
+                ?.takeIf { it.storeFile?.exists() == true }
+                ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

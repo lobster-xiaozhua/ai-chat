@@ -9,8 +9,9 @@
 
 | 工作流 | 触发条件 | 产物 |
 |--------|----------|------|
-| [android-debug.yml](.github/workflows/android-debug.yml) | push / PR 到 `main` | `app-debug.apk` |
-| [android-release.yml](.github/workflows/android-release.yml) | push 到 `main` / 打 `v*` tag | `app-release.apk` + `app-release.aab`，并发布到 GitHub Releases |
+| [android-build.yml](.github/workflows/android-build.yml) — `build-debug` | push / PR 到 `main` / `master` | `app-debug.apk` |
+| [android-build.yml](.github/workflows/android-build.yml) — `build-release` | push 到 `main` / 打 `v*` tag | `app-release.apk` + `app-release.aab` |
+| [android-build.yml](.github/workflows/android-build.yml) — `publish-release` | 打 `v*` tag | 自动发布到 GitHub Releases |
 
 ### Release 签名：在仓库 Settings 添加 Secrets
 
