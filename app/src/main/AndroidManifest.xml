@@ -23,6 +23,9 @@
     <!-- Android 10-12 传统读取权限（Android 13+ 由 READ_MEDIA_IMAGES 替代） -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
+    <!-- 安装 APK 更新：Android 8+ 需要请求安装权限 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".AiChatApp"
         android:allowBackup="true"
