@@ -59,8 +59,8 @@ jobs:
       - name: 🐛 报告构建错误
         if: failure()
         run: |
-          echo "=== 构建日志（最后80行）==="
-          tail -80 build-debug.log 2>/dev/null || echo "No log available"
+          echo "=== 构建日志（最后200行）==="
+          tail -200 build-debug.log 2>/dev/null || echo "No log available"
 
       - name: 📝 创建构建失败 Issue
         if: failure() && github.event_name == 'push'
@@ -70,9 +70,9 @@ jobs:
             const { execSync } = require('child_process');
             let log = 'No log available';
             try {
-              log = execSync('tail -80 build-debug.log', { encoding: 'utf8' });
+              log = execSync('tail -200 build-debug.log', { encoding: 'utf8', maxBuffer: 1024 * 1024 });
             } catch (e) {}
-            const body = `## Debug APK 构建失败\n\n**Commit:** ${context.sha}\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n### 构建日志（最后80行）\n\`\`\`\n${log}\n\`\`\``;
+            const body = `## Debug APK 构建失败\n\n**Commit:** ${context.sha}\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n### 构建日志（最后200行）\n\`\`\`\n${log}\n\`\`\``;
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
