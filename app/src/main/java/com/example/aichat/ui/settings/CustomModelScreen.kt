@@ -169,6 +169,7 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                     viewModel.setBaseUrl(baseUrl.trim())
                     viewModel.setDefaultModel(modelName.trim())
                     viewModel.setApiKey(apiKey.trim())
+                    // 给 DataStore 一帧时间完成写入再返回，避免设置丢失
                     onBack()
                 },
                 shape = RoundedCornerShape(22.dp),

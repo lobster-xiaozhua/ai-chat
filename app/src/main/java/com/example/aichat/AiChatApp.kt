@@ -20,8 +20,11 @@ class AiChatApp : Application() {
         super.onCreate()
         // 启动时输出一行版本/环境信息 —— 便于 adb logcat 快速定位测试包
         Log.d("AiChat", "onCreate: appId=$packageName, ver=$versionName(${versionCode}), sdk=${Build.VERSION.SDK_INT}, device=${Build.MODEL}")
-        // 清理上次残留的拍照临时文件 —— 不阻塞 UI，失败也静默忽略
-        appScope.launch { clearCameraTempFiles(this@AiChatApp) }
+        // 清理上次残留的拍照临时文件 —— 不阻塞 UI，失败记录日志
+        appScope.launch {
+            runCatching { clearCameraTempFiles(this@AiChatApp) }
+                .onFailure { Log.w("AiChat", "清理拍照临时文件失败", it) }
+        }
     }
 
     private val versionName: String

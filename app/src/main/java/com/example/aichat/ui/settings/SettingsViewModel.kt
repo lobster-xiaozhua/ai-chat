@@ -55,8 +55,9 @@ class SettingsViewModel @Inject constructor(
             launch { settingsRepository.getSystemPrompt().collect { _systemPrompt.value = it } }
             launch { settingsRepository.getBaseUrl().collect { _baseUrl.value = it } }
             launch { settingsRepository.getSelectedModelIds().collect { _selectedModelIds.value = it } }
+            // 异步读取 API Key，避免 EncryptedSharedPreferences 首次初始化阻塞主线程
+            launch { _apiKey.value = settingsRepository.getApiKey() }
         }
-        _apiKey.value = settingsRepository.getApiKey()
     }
 
     fun setTheme(value: String) = viewModelScope.launch { settingsRepository.setTheme(value) }

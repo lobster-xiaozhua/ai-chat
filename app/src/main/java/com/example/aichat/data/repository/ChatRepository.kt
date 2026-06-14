@@ -33,7 +33,8 @@ class ChatRepository @Inject constructor(
         conversationDao.delete(conversation)
     }
 
-    suspend fun deleteAllConversations() {
+    suspend fun deleteAllConversations() = db.runInTransaction {
+        messageDao.deleteByAll()
         conversationDao.deleteAll()
     }
 

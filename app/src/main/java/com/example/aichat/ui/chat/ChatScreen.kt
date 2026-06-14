@@ -192,6 +192,14 @@ fun ChatScreen(
             onMenuClick = { coroutineScope.launch { drawerState.open() } },
             onModelClick = { showModelSelector = true },
             onOpenPlusSheet = { showPlusSheet = true },
+            thinkMode = chatViewModel.thinkMode.collectAsState().value,
+            searchMode = chatViewModel.searchMode.collectAsState().value,
+            jsonMode = chatViewModel.jsonMode.collectAsState().value,
+            onToggleThink = { chatViewModel.toggleThink() },
+            onToggleSearch = { chatViewModel.toggleSearch() },
+            onToggleJsonMode = { chatViewModel.toggleJsonMode() },
+            onRemoveImage = { url -> chatViewModel.removeImageUrl(url) },
+            onRemoveDocument = { url -> chatViewModel.removeDocumentUrl(url) },
             snackbarHostState = snackbarHostState
         )
     }
@@ -280,12 +288,16 @@ private fun MainChatContent(
     onMenuClick: () -> Unit,
     onModelClick: () -> Unit,
     onOpenPlusSheet: () -> Unit,
+    thinkMode: Boolean,
+    searchMode: Boolean,
+    jsonMode: Boolean,
+    onToggleThink: () -> Unit,
+    onToggleSearch: () -> Unit,
+    onToggleJsonMode: () -> Unit,
+    onRemoveImage: (String) -> Unit,
+    onRemoveDocument: (String) -> Unit,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
-    val chatViewModel: ChatViewModel = hiltViewModel()
-    val thinkMode = chatViewModel.thinkMode.collectAsState().value
-    val searchMode = chatViewModel.searchMode.collectAsState().value
-    val jsonMode = chatViewModel.jsonMode.collectAsState().value
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -306,14 +318,14 @@ private fun MainChatContent(
                 thinkMode = thinkMode,
                 searchMode = searchMode,
                 jsonMode = jsonMode,
-                onToggleThink = { chatViewModel.toggleThink() },
-                onToggleSearch = { chatViewModel.toggleSearch() },
-                onToggleJsonMode = { chatViewModel.toggleJsonMode() },
+                onToggleThink = onToggleThink,
+                onToggleSearch = onToggleSearch,
+                onToggleJsonMode = onToggleJsonMode,
                 pendingImageUrls = pendingImageUrls,
-                onRemoveImage = { url -> chatViewModel.removeImageUrl(url) },
+                onRemoveImage = onRemoveImage,
                 pendingDocumentUrls = pendingDocumentUrls,
                 pendingDocumentNames = pendingDocumentNames,
-                onRemoveDocument = { url -> chatViewModel.removeDocumentUrl(url) },
+                onRemoveDocument = onRemoveDocument,
                 onSend = onSend,
                 onStop = onStop,
                 onModelClick = onModelClick,
@@ -325,7 +337,7 @@ private fun MainChatContent(
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty() && pendingDocumentUrls.isEmpty()) {
-                EmptyState(onExampleClick = { example -> onInputChange(example); onSend() })
+                EmptyState(onExampleClick = { example -> onInputChange(example) }, onSend = onSend)
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     items(items = messages, key = { msg -> msg.id.takeIf { it != 0L } ?: (msg.timestamp.toString() + msg.role + msg.content.hashCode()) }) { msg ->
@@ -589,13 +601,17 @@ private fun SheetAction(icon: String, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun EmptyState(onExampleClick: (String) -> Unit) {
+private fun EmptyState(onExampleClick: (String) -> Unit, onSend: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("✨ AI 助手", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 24.dp))
         Text("输入消息开始对话，或试试这些示例：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 24.dp))
         val examples = listOf("帮我写一个 Kotlin 协程的例子", "用简单的方式解释 Transformer 架构", "写一首关于夏日的短诗")
         examples.forEach { example ->
-            Surface(onClick = { onExampleClick(example) }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            Surface(onClick = {
+                onExampleClick(example)
+                // 延迟一帧发送，确保 inputText 状态已更新
+                onSend()
+            }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Text(example, modifier = Modifier.padding(16.dp), fontSize = 14.sp)
             }
         }

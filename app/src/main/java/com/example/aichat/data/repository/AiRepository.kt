@@ -179,7 +179,7 @@ class AiRepository @Inject constructor(
             }
         }
 
-        send("\n(已达到最大工具调用深度)")
+        send("\n\n⚠️ 已达到最大工具调用深度（$maxDepth），部分工具调用结果未被处理。")
     }.flowOn(Dispatchers.IO)
 
     /* ---------- 内部：执行一轮流式请求 ---------- */
@@ -227,7 +227,10 @@ class AiRepository @Inject constructor(
         EventSourceParser().parse(body.source()).collect { raw ->
             val chunk = try {
                 json.decodeFromString<com.example.aichat.data.remote.dto.ChatCompletionChunk>(raw)
-            } catch (_: Exception) { return@collect }
+            } catch (e: Exception) {
+                android.util.Log.w("AiRepository", "SSE chunk 解析失败: ${raw.take(100)}", e)
+                return@collect
+            }
 
             chunk.choices.firstOrNull()?.let { choice ->
                 choice.delta?.content?.takeIf { it.isNotEmpty() }?.let { textBuilder.append(it) }

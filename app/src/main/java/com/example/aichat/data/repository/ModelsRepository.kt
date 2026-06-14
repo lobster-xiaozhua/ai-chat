@@ -22,8 +22,8 @@ class ModelsRepository @Inject constructor(
     private val apiService: ModelsApiService
 ) {
 
-    // 内存缓存（避免重复网络请求）。以 baseUrl 为 key。
-    private val cache: MutableMap<String, List<GroupedModels>> = mutableMapOf()
+    // 内存缓存（避免重复网络请求）。以 baseUrl 为 key。ConcurrentHashMap 保证线程安全。
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, List<GroupedModels>>()
 
     /**
      * 获取模型列表（带缓存）。
@@ -66,7 +66,8 @@ class ModelsRepository @Inject constructor(
             cache[key] = grouped
             Result.success(grouped)
         } catch (t: Throwable) {
-            // 失败就用 fallback，不让 UI 空
+            // 失败就用 fallback，不让 UI 空；记录日志便于排查
+            android.util.Log.w("ModelsRepository", "获取模型列表失败，使用 fallback", t)
             Result.success(fallback(baseUrl))
         }
     }

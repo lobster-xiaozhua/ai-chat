@@ -77,7 +77,19 @@ class ChatViewModel @Inject constructor(
     private var generationJob: Job? = null
     private val _currentConversationId = MutableStateFlow<String?>(null)
     val currentConversationId: StateFlow<String?> = _currentConversationId.asStateFlow()
+    // 使用同步列表保证协程间安全访问
+    @Volatile
     private var historyForApi = mutableListOf<Pair<String, String>>()
+        get() = synchronized(this) { field }
+        set(value) { synchronized(this) { field = value } }
+
+    private fun <T> MutableList<T>.syncRemoveLastOrNull(): T? = synchronized(this@ChatViewModel) {
+        this.removeLastOrNull()
+    }
+
+    private fun <T> MutableList<T>.syncAdd(element: T): Boolean = synchronized(this@ChatViewModel) {
+        this.add(element)
+    }
 
     /* ---------- 初始化：从 DataStore 异步加载设置 ---------- */
     init {
@@ -197,7 +209,7 @@ class ChatViewModel @Inject constructor(
         )
 
         _messages.value = _messages.value + userMsg
-        historyForApi.add("user" to initialTextForHistory)
+        historyForApi.syncAdd("user" to initialTextForHistory)
         viewModelScope.launch { runCatching { chatRepository.insertMessage(userMsg) } }
 
         _isGenerating.value = true
@@ -277,12 +289,12 @@ class ChatViewModel @Inject constructor(
                         timestamp = System.currentTimeMillis()
                     )
                     _messages.value = _messages.value + finalMsg
-                    historyForApi.add("assistant" to finalContent)
+                    historyForApi.syncAdd("assistant" to finalContent)
                     viewModelScope.launch { runCatching { chatRepository.insertMessage(finalMsg) } }
                 }
             } catch (e: com.example.aichat.data.repository.ApiException) {
                 _error.value = e.message ?: "发生错误"
-                historyForApi.removeLastOrNull()
+                historyForApi.syncRemoveLastOrNull()
                 restorePendingAttachments(images, documents, docNames)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // 用户主动停止 → 保留部分内容，不恢复附件（已发送的消息是有效的）
@@ -295,16 +307,16 @@ class ChatViewModel @Inject constructor(
                         timestamp = System.currentTimeMillis()
                     )
                     _messages.value = _messages.value + finalMsg
-                    historyForApi.add("assistant" to partial)
+                    historyForApi.syncAdd("assistant" to partial)
                     viewModelScope.launch { runCatching { chatRepository.insertMessage(finalMsg) } }
                 } else {
-                    historyForApi.removeLastOrNull()
+                    historyForApi.syncRemoveLastOrNull()
                     restorePendingAttachments(images, documents, docNames)
                 }
                 throw e
             } catch (e: Exception) {
                 _error.value = "消息生成失败：${e.message}"
-                historyForApi.removeLastOrNull()
+                historyForApi.syncRemoveLastOrNull()
                 restorePendingAttachments(images, documents, docNames)
             } finally {
                 _streamingAssistant.value = null

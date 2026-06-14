@@ -16,10 +16,12 @@
 
     <!-- Android 13（API 33）+：运行时通知权限，用于后台长任务完成通知、
          崩溃通知等；荣耀 90GT 的 MagicOS 10.0/10.1/11.0（安卓 16）会在未授权时静默拦截 -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" android:minSdkVersion="33" />
 
     <!-- Android 13+ 分媒体类型读取权限（从相册选择图片时系统自动授予，无需动态申请） -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" android:minSdkVersion="33" />
+    <!-- Android 10-12 传统读取权限（Android 13+ 由 READ_MEDIA_IMAGES 替代） -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
     <application
         android:name=".AiChatApp"
