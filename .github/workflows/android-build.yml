@@ -20,9 +20,9 @@ permissions:
 
 # 环境变量：在所有 job 中共享
 env:
-  JAVA_VERSION: "17"
+  JAVA_VERSION: "21"
   JAVA_DIST: "temurin"
-  GRADLE_VERSION: "8.14.4"
+  GRADLE_VERSION: "9.5.1"
   MODULE: "app"
   BUILD_DATE: ""  # 会在 job 启动时动态设置
 

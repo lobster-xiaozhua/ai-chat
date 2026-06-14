@@ -8,17 +8,16 @@ plugins {
 
 android {
     namespace = "com.example.aichat"
-    // compileSdk = 35：安卓 15 — AGP 8.5.4 官方最高支持
-    // （Android 16 / API 36 需要 AGP 8.7+；本项目用 35 已可覆盖 MagicOS 10.0+）
-    compileSdk = 35
+    // compileSdk = 36：安卓 16 — AGP 8.7.x 官方支持
+    // （Android 16 / API 36 需要 AGP 8.7+；覆盖 MagicOS 10.0+ 全机型）
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.aichat"
         // minSdk = 29：安卓 10，覆盖荣耀 90GT（出厂 MagicOS 7.2 / Android 13）
-        // 以及所有可升级到 Android 10+ 的荣耀/华为机型
         minSdk = 29
-        // targetSdk = 35：安卓 15 — MagicOS 10.0+ 强要求 targetSdk ≥ 33，否则会进"兼容模式"
-        targetSdk = 35
+        // targetSdk = 36：安卓 16 — MagicOS 10.0+ 强要求 targetSdk ≥ 33
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -87,11 +86,8 @@ android {
         compose = true
         buildConfig = true
     }
-    // Kotlin 2.0 使用 kotlin Compiler Gradle 插件管理 Compose 编译器版本，
-    // 此处仍保留 composeOptions 作为 AGP 8.x 兼容性声明，确保 CI 构建稳定。
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.15"
-    }
+    // Kotlin 2.2+ 由 kotlin-gradle-plugin 内置 Compose Compiler，无需显式声明
+    // composeOptions { kotlinCompilerExtensionVersion = "..." } 可省略
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -127,14 +123,14 @@ dependencies {
     implementation("androidx.paging:paging-runtime-ktx:3.3.2")
     implementation("androidx.paging:paging-compose:3.3.2")
 
-    implementation("com.google.dagger:hilt-android:2.52")
-    ksp("com.google.dagger:hilt-android-compiler:2.52")
+    implementation("com.google.dagger:hilt-android:2.55")
+    ksp("com.google.dagger:hilt-android-compiler:2.55")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
 
     implementation("androidx.security:security-crypto:1.0.0")
