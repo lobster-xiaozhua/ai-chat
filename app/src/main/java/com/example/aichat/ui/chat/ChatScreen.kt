@@ -243,10 +243,6 @@ fun ChatScreen(
                 coroutineScope.launch { drawerState.close() }
                 showModelSelector = true
             },
-            onOpenPlusSheet = {
-                coroutineScope.launch { drawerState.close() }
-                showPlusSheet = true
-            },
             thinkMode = chatViewModel.thinkMode.collectAsState().value,
             searchMode = chatViewModel.searchMode.collectAsState().value,
             jsonMode = chatViewModel.jsonMode.collectAsState().value,
@@ -304,19 +300,7 @@ fun ChatScreen(
         }
     }
 
-    // Plus 二级面板
-    if (showPlusSheet) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            PlusBottomSheet(
-                onDismiss = { showPlusSheet = false },
-                onPickPhoto = { imagePicker.pickImages(maxItems = 9); showPlusSheet = false },
-                onPickFromCamera = { imagePicker.pickFromCamera(); showPlusSheet = false },
-                onPickDocument = { documentPicker.pickDocuments(); showPlusSheet = false },
-                jsonMode = chatViewModel.jsonMode.collectAsState().value,
-                onToggleJsonMode = { chatViewModel.toggleJsonMode() }
-            )
-        }
-    }
+    // Plus 折叠面板（输入栏上方展开，非全屏遮罩）
 
     if (showModelSelector) {
         Surface(
@@ -387,7 +371,6 @@ private fun MainChatContent(
     onStop: () -> Unit,
     onMenuClick: () -> Unit,
     onModelClick: () -> Unit,
-    onOpenPlusSheet: () -> Unit,
     thinkMode: Boolean,
     searchMode: Boolean,
     jsonMode: Boolean,
@@ -432,7 +415,11 @@ private fun MainChatContent(
                 onSend = onSend,
                 onStop = onStop,
                 onModelClick = onModelClick,
-                onOpenPlusSheet = onOpenPlusSheet,
+                plusExpanded = showPlusSheet,
+                onTogglePlus = { showPlusSheet = !showPlusSheet },
+                onPickPhoto = { imagePicker.pickImages(maxItems = 9); showPlusSheet = false },
+                onPickFromCamera = { imagePicker.pickFromCamera(); showPlusSheet = false },
+                onPickDocument = { documentPicker.pickDocuments(); showPlusSheet = false },
                 modifier = Modifier.navigationBarsPadding().imePadding()
             )
         },
@@ -508,11 +495,25 @@ private fun ChatInputBar(
     onSend: () -> Unit,
     onStop: () -> Unit,
     onModelClick: () -> Unit,
-    onOpenPlusSheet: () -> Unit,
+    plusExpanded: Boolean,
+    onTogglePlus: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onPickFromCamera: () -> Unit,
+    onPickDocument: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+        // —— 折叠面板：在输入栏上方展开 ——
+        if (plusExpanded) {
+            InlinePlusPanel(
+                onPickPhoto = onPickPhoto,
+                onPickFromCamera = onPickFromCamera,
+                onPickDocument = onPickDocument,
+                jsonMode = jsonMode,
+                onToggleJsonMode = onToggleJsonMode
+            )
+            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+        }
 
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -524,6 +525,25 @@ private fun ChatInputBar(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
                 ) {
+                    // "+" 按钮：输入框左侧，发送键旁边
+                    Surface(
+                        onClick = onTogglePlus,
+                        shape = CircleShape,
+                        color = if (plusExpanded) Primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.size(36.dp).semantics { contentDescription = "更多选项" }
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Text(
+                                if (plusExpanded) "✕" else "+",
+                                color = if (plusExpanded) Primary else MaterialTheme.colorScheme.onSurface,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
                     androidx.compose.foundation.text.BasicTextField(
                         value = inputText,
                         onValueChange = onInputChange,
@@ -539,7 +559,7 @@ private fun ChatInputBar(
                                     else if (pendingDocumentUrls.isNotEmpty()) append("描述这些文档…")
                                     else if (thinkMode) append("深度思考中，请输入…")
                                     else if (searchMode) append("联网搜索模式，请输入…")
-                                    else append("Type a message or hold to speak")
+                                    else append("输入消息…")
                                 }
                                 Text(tip, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 14.sp)
                             }
@@ -573,16 +593,6 @@ private fun ChatInputBar(
                     Spacer(modifier = Modifier.weight(1f))
 
                     ModeChip(label = friendlyModelName(currentModel), isOn = false, onClick = onModelClick, icon = "", isModelChip = true)
-                    Surface(
-                        onClick = onOpenPlusSheet,
-                        shape = CircleShape,
-                        color = if (jsonMode || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) Primary else MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.size(30.dp).semantics { contentDescription = "更多选项" }
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("+", color = if (jsonMode || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
                 }
             }
         }
@@ -680,36 +690,32 @@ private fun ModeChip(
     }
 }
 
+/** 输入栏上方的内联折叠面板 —— 替代全屏 PlusBottomSheet */
 @Composable
-fun PlusBottomSheet(
-    onDismiss: () -> Unit,
+private fun InlinePlusPanel(
     onPickPhoto: () -> Unit,
     onPickFromCamera: () -> Unit,
     onPickDocument: () -> Unit,
     jsonMode: Boolean,
     onToggleJsonMode: () -> Unit
 ) {
-    Surface(color = Color.Black.copy(alpha = 0.45f), modifier = Modifier.fillMaxSize().clickable(onClick = onDismiss)) {}
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        Surface(
-            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
-            color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Box(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp), contentAlignment = Alignment.Center) {
-                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f), modifier = Modifier.size(38.dp, 4.dp)) {}
-                }
-                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    SheetAction(icon = "📷", label = "Camera", onClick = onPickFromCamera)
-                    SheetAction(icon = "🖼️", label = "Photo", onClick = onPickPhoto)
-                    SheetAction(icon = "📄", label = "Document", onClick = onPickDocument)
-                }
-                Divider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 4.dp))
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("{ } JSON 结构化输出", modifier = Modifier.weight(1f), fontSize = 14.sp)
-                    androidx.compose.material3.Switch(checked = jsonMode, onCheckedChange = { onToggleJsonMode() })
-                }
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                SheetAction(icon = "📷", label = "相机", onClick = onPickFromCamera)
+                SheetAction(icon = "🖼️", label = "相册", onClick = onPickPhoto)
+                SheetAction(icon = "📄", label = "文档", onClick = onPickDocument)
+            }
+            Divider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("{ } JSON 结构化输出", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                androidx.compose.material3.Switch(checked = jsonMode, onCheckedChange = { onToggleJsonMode() })
             }
         }
     }
