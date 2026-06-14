@@ -91,7 +91,7 @@ fun Uri.getFileSizeBytes(context: Context): Long {
  * 从文档 URI 中提取纯文本。超过 maxChars 会截断并附加提示。
  *
  * 支持：
- *   · text/* —— 直接读取字符流
+ *   · text/any —— 直接读取字符流
  *   · application/json / application/xml / text/csv
  *   · application/pdf —— PdfRenderer，最多 3 页，每页前 4000 字符
  *  其他 MIME 或异常返回 null。
