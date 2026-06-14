@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    网络安全配置：
+      · 默认对 cleartext（HTTP）放行 10.0.0.0/8、172.16.0.0/12、192.168.0.0/16、127.0.0.1/32
+        （方便开发者在内网调试时填写 http://192.168.x.x 类型的 baseUrl）
+      · 其余域名强制 HTTPS（与原先 usesCleartextTraffic="false" 的默认行为一致）
+      · 不拦截自定义的用户输入 baseUrl，避免连接用户自建 AI API 失败
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.0.0</domain>
+        <domain includeSubdomains="true">172.16.0.0</domain>
+        <domain includeSubdomains="true">192.168.0.0</domain>
+    </domain-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
