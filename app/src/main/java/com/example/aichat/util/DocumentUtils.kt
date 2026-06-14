@@ -163,22 +163,30 @@ private fun readPdfAsText(context: Context, uri: Uri, maxChars: Int): String? {
         pfd = context.contentResolver.openFileDescriptor(uri, "r")
         if (pfd == null) return null
         var pageCount = 0
-        PdfRenderer(pfd).use { renderer ->
-            pageCount = renderer.pageCount
+        val renderer = try {
+            PdfRenderer(pfd)
+        } catch (e: Exception) {
+            // PdfRenderer 构造失败时手动关闭 pfd
+            runCatching { pfd.close() }
+            pfd = null
+            return null
+        }
+        renderer.use {
+            pageCount = it.pageCount
             val take = pageCount.coerceAtMost(3)
             sb.appendLine("总页数：$pageCount；已分析前 $take 页")
             for (i in 0 until take) {
-                renderer.openPage(i).use { page ->
-                    // PdfRenderer 只能渲染到 Bitmap，无法直接提取文本。
-                    // 我们退化为：用页面索引和大小的估计文本作为 AI 模型的上下文提示。
+                it.openPage(i).use { page ->
                     val w = page.width
                     val h = page.height
                     sb.appendLine("第 ${i + 1} 页：尺寸 ${w}x$h（需要多模态模型才能理解图片内容）")
                 }
             }
         }
+        // PdfRenderer.close() 已关闭 pfd，标记为 null 避免重复关闭
+        pfd = null
     } finally {
-        // pfd 即便在 PdfRenderer.use 内部抛出异常，这里也要保证关闭
+        // 仅在 PdfRenderer 未成功关闭 pfd 时兜底关闭
         runCatching { pfd?.close() }
     }
     return sb.toString()

@@ -168,6 +168,27 @@ private fun Bitmap.encodeToJpeg(quality: Int): ByteArray {
 }
 
 /**
+ * 计算 BitmapFactory 的 inSampleSize，使解码后图片长边不超过 reqWidth/reqHeight。
+ */
+private fun calculateInSampleSize(
+    options: BitmapFactory.Options,
+    reqWidth: Int,
+    reqHeight: Int
+): Int {
+    val (h, w) = options.outHeight to options.outWidth
+    if (h <= 0 || w <= 0) return 1
+    var inSampleSize = 1
+    if (h > reqHeight || w > reqWidth) {
+        val halfH = h / 2
+        val halfW = w / 2
+        while ((halfH / inSampleSize) >= reqHeight && (halfW / inSampleSize) >= reqWidth) {
+            inSampleSize *= 2
+        }
+    }
+    return inSampleSize
+}
+
+/**
  * 批量把 content:// URI 列表转换为 data URI 列表。
  * 忽略失败项。
  */
