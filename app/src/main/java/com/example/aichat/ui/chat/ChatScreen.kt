@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,25 +25,30 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
-import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
-import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -58,14 +62,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.example.aichat.data.model.Conversation
@@ -83,7 +83,6 @@ fun ChatScreen(
     val chatViewModel: ChatViewModel = hiltViewModel()
     val conversationListViewModel: ConversationListViewModel = hiltViewModel()
 
-    // 已选模型 + 历史消息
     val selectedModelIds = chatViewModel.selectedModelIds.collectAsState()
     val messages by chatViewModel.messages.collectAsState()
     val isGenerating by chatViewModel.isGenerating.collectAsState()
@@ -92,47 +91,38 @@ fun ChatScreen(
     val streamingText by chatViewModel.streamingAssistant.collectAsState()
     val conversations by conversationListViewModel.conversations.collectAsState()
 
-    // 待发送图片 / 文档（从选择器获取的 content:// URI 字符串列表）
-    // 直接使用 ViewModel 中的 SnapshotStateList/SnapshotStateMap。
-    // 这些是 @Stable 容器：增/删不会导致已存在的 item 被重组。
     val pendingImageUrls = chatViewModel.pendingImageUrls
     val pendingDocumentUrls = chatViewModel.pendingDocumentUrls
     val pendingDocumentNames = chatViewModel.pendingDocumentNames
 
-    // —— 图片选择器（Android 官方 Photo Picker）—— 在此处注册，供 Photo 按钮调用
     val imagePicker = rememberImagePicker(onPicked = { newUris ->
         chatViewModel.addImageUrls(newUris)
     })
-
-    // —— 文档选择器（OpenMultipleDocuments，支持 text + pdf + json 等）—— 在此处注册
-    val context = androidx.compose.ui.platform.LocalContext.current
     val documentPicker = rememberDocumentPicker { urisWithNames ->
         chatViewModel.addDocumentUrls(urisWithNames)
     }
 
     var inputText by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
-    var drawerOpen by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
     var showPlusSheet by remember { mutableStateOf(false) }
 
-    // 从 ViewModel 读取当前活跃会话 ID；首次进入为空时创建一个新对话
     val activeConversationId by chatViewModel.currentConversationId.collectAsState()
 
-    // 确保首次进入时有一个对话（只执行一次）
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        if (chatViewModel.currentConversationId.value == null) {
+    // 修复白屏：当 currentConversationId 为 null 时自动创建对话
+    LaunchedEffect(activeConversationId) {
+        if (activeConversationId == null) {
             val newId = conversationListViewModel.createNewConversation()
             chatViewModel.setConversation(newId)
         }
     }
 
-    // 快速切换模型
     val quickModels = selectedModelIds.value.ifEmpty { listOf(currentModel) }
         .distinct().let { if (it.isEmpty()) listOf(currentModel) else it }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     LaunchedEffect(error) {
         error?.let {
@@ -152,64 +142,35 @@ fun ChatScreen(
         }
     }
 
-    if (drawerOpen) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            MainChatContent(
-                messages = messages,
-                streamingText = streamingText,
-                isGenerating = isGenerating,
-                currentModel = currentModel,
-                listState = listState,
-                inputText = inputText,
-                pendingImageUrls = pendingImageUrls,
-                pendingDocumentUrls = pendingDocumentUrls,
-                pendingDocumentNames = pendingDocumentNames,
-                onInputChange = { inputText = it },
-                onSend = {
-                    if (inputText.isNotBlank() || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) {
-                        chatViewModel.sendMessage(inputText.trim())
-                        inputText = ""
-                    }
+    // 修复抽屉：使用 ModalNavigationDrawer 替代条件分支，避免状态丢失
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ConversationDrawer(
+                conversations = conversations,
+                activeConversationId = activeConversationId,
+                onSelect = { id ->
+                    chatViewModel.setConversation(id)
+                    coroutineScope.launch { drawerState.close() }
                 },
-                onStop = { chatViewModel.stopGeneration() },
-                onMenuClick = { drawerOpen = true },
-                onModelClick = { showModelSelector = true },
-                onOpenPlusSheet = { showPlusSheet = true }
-            )
-            Surface(
-                color = Color.Black.copy(alpha = 0.4f),
-                modifier = Modifier.fillMaxSize().clickable { drawerOpen = false }
-            ) {}
-            Surface(
-                modifier = Modifier.fillMaxWidth(0.78f).fillMaxSize(),
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                ConversationDrawer(
-                    conversations = conversations,
-                    activeConversationId = activeConversationId,
-                    onSelect = { id ->
-                        chatViewModel.setConversation(id)
-                        drawerOpen = false
-                    },
-                    onNewChat = {
+                onNewChat = {
+                    val newId = conversationListViewModel.createNewConversation()
+                    chatViewModel.setConversation(newId)
+                    coroutineScope.launch { drawerState.close() }
+                },
+                onRename = { id, title -> conversationListViewModel.renameConversation(id, title) },
+                onDelete = { id ->
+                    conversationListViewModel.deleteConversation(id)
+                    if (activeConversationId == id) {
                         val newId = conversationListViewModel.createNewConversation()
                         chatViewModel.setConversation(newId)
-                        drawerOpen = false
-                    },
-                    onRename = { id, title -> conversationListViewModel.renameConversation(id, title) },
-                    onDelete = { id ->
-                        conversationListViewModel.deleteConversation(id)
-                        if (activeConversationId == id) {
-                            val newId = conversationListViewModel.createNewConversation()
-                            chatViewModel.setConversation(newId)
-                        }
-                    },
-                    onNavigateToAccount = { drawerOpen = false; onNavigateToAccount() },
-                    onNavigateToSettings = { drawerOpen = false; onNavigateToSettings() }
-                )
-            }
+                    }
+                },
+                onNavigateToAccount = { coroutineScope.launch { drawerState.close() }; onNavigateToAccount() },
+                onNavigateToSettings = { coroutineScope.launch { drawerState.close() }; onNavigateToSettings() }
+            )
         }
-    } else {
+    ) {
         MainChatContent(
             messages = messages,
             streamingText = streamingText,
@@ -228,13 +189,14 @@ fun ChatScreen(
                 }
             },
             onStop = { chatViewModel.stopGeneration() },
-            onMenuClick = { drawerOpen = true },
+            onMenuClick = { coroutineScope.launch { drawerState.open() } },
             onModelClick = { showModelSelector = true },
-            onOpenPlusSheet = { showPlusSheet = true }
+            onOpenPlusSheet = { showPlusSheet = true },
+            snackbarHostState = snackbarHostState
         )
     }
 
-    // —— Plus 二级面板（点击 + 触发）
+    // Plus 二级面板
     if (showPlusSheet) {
         Box(modifier = Modifier.fillMaxSize()) {
             PlusBottomSheet(
@@ -275,7 +237,7 @@ fun ChatScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(friendlyModelName(id), color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(16.dp).weight(1f), fontSize = 13.sp)
                                     if (selected) {
-                                        androidx.compose.material3.Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.padding(end = 12.dp))
+                                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.padding(end = 12.dp))
                                     }
                                 }
                             }
@@ -289,7 +251,7 @@ fun ChatScreen(
                             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                androidx.compose.material3.Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Primary, modifier = Modifier.padding(16.dp))
+                                Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Primary, modifier = Modifier.padding(16.dp))
                                 Text("选择更多模型 (搜索 / 多选)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, modifier = Modifier.weight(1f))
                             }
                         }
@@ -317,17 +279,15 @@ private fun MainChatContent(
     onStop: () -> Unit,
     onMenuClick: () -> Unit,
     onModelClick: () -> Unit,
-    onOpenPlusSheet: () -> Unit
+    onOpenPlusSheet: () -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val chatViewModel: ChatViewModel = hiltViewModel()
     val thinkMode = chatViewModel.thinkMode.collectAsState().value
     val searchMode = chatViewModel.searchMode.collectAsState().value
     val jsonMode = chatViewModel.jsonMode.collectAsState().value
 
     Scaffold(
-        // 让 Scaffold 不自动处理 insets — 我们手动精确处理
-        // （MagicOS 10+ / Android 16 在内容区域绘制在系统栏下方，必须手动控制）
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
@@ -338,8 +298,6 @@ private fun MainChatContent(
             )
         },
         bottomBar = {
-            // navigationBarsPadding：避免被三键/手势导航栏遮挡
-            // imePadding：输入法弹出时输入栏自动上移
             ChatInputBar(
                 inputText = inputText,
                 onInputChange = onInputChange,
@@ -365,10 +323,6 @@ private fun MainChatContent(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
-        // innerPadding 只包含 topBar / bottomBar 的高度 ——
-        // 我们在 topBar / bottomBar 里已经加了系统栏 padding，
-        // 所以这里不需要再加；但需要在内容区域底部留一点导航栏的 space
-        // （输入法弹出时被 imePadding 覆盖了，输入法收起时手势导航栏会显示）
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty() && pendingDocumentUrls.isEmpty()) {
                 EmptyState(onExampleClick = { example -> onInputChange(example); onSend() })
@@ -392,22 +346,6 @@ private fun MainChatContent(
     }
 }
 
-/* ==========================================================================
- * ChatInputBar —— 统一卡片式输入栏
- *
- * ┌────────────────────────────────────────────────────────────┐
- * │  [Think✓] [Search 🌐]           [Nemotron Nano ▼] [+] [🎤] │
- * │  ┌──────────────────────────────────────────────────────┐  │
- * │  │  Type a message or hold to speak            [→]      │  │
- * │  └──────────────────────────────────────────────────────┘  │
- * │  [ image thumbnail row if any ]                            │
- * └────────────────────────────────────────────────────────────┘
- *
- *  · 左侧：Think / Search（模式开关，默认常驻可见，场景化）
- *  · 右侧：模型选择 / +（展开二级面板）/ 语音
- *  · 下层：文本输入 + 发送按钮
- *  · 最下层：已选图片缩略图（发送前可移除）
- * ========================================================================== */
 @Composable
 private fun ChatInputBar(
     inputText: String,
@@ -440,8 +378,6 @@ private fun ChatInputBar(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-
-                // —— 顶部：文本输入 + 发送按钮（视觉焦点，第一排）
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
@@ -484,7 +420,6 @@ private fun ChatInputBar(
                     }
                 }
 
-                // —— 底部一行：左 (Think / Search) + 右 (模型 / +)
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -510,7 +445,6 @@ private fun ChatInputBar(
             }
         }
 
-        // —— 已选图片缩略图预览（位于卡片下方，独立一行）
         if (pendingImageUrls.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
@@ -540,7 +474,6 @@ private fun ChatInputBar(
             }
         }
 
-        // —— 已选文档 Chip 预览（位于图片下方，独立一行）
         if (pendingDocumentUrls.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 10.dp),
@@ -557,11 +490,7 @@ private fun ChatInputBar(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("📄", fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
-                            Text(
-                                text = name.take(20),
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Text(text = name.take(20), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                             Surface(onClick = { onRemoveDocument(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(16.dp).padding(start = 4.dp)) {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text("×", color = Color.White, fontSize = 10.sp)
@@ -575,9 +504,6 @@ private fun ChatInputBar(
     }
 }
 
-/**
- * 模式开关 Chip —— Think / Search 等通用按钮样式
- */
 @Composable
 private fun ModeChip(
     label: String,
@@ -612,18 +538,6 @@ private fun ModeChip(
     }
 }
 
-/* ==========================================================================
- * PlusBottomSheet —— 点击 + 弹出的底部半屏面板
- *
- *  放置低频但重要的扩展操作：
- *   · 📷 Camera     —— 拍照（系统相机 Intent）
- *   · 🖼️ Photo      —— 从相册选图（PhotoPicker）
- *   · 📄 Document   —— 文件选择
- *   · { } JSON      —— 结构化输出模式开关
- *
- *  Note: Think / Search 属于发送时的"模式"，放在输入栏顶层，
- *        不因扩展操作而丢失当前模式上下文。
- * ========================================================================== */
 @Composable
 fun PlusBottomSheet(
     onDismiss: () -> Unit,
@@ -699,6 +613,9 @@ private fun ConversationDrawer(
     onNavigateToAccount: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
+    var menuConvId by remember { mutableStateOf<String?>(null) }
+    var showRenameDialog by remember { mutableStateOf<String?>(null) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("历史对话", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -709,14 +626,65 @@ private fun ConversationDrawer(
             items(conversations, key = { it.id }) { conv ->
                 val isActive = conv.id == activeConversationId
                 val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
-                Surface(onClick = { onSelect(conv.id) }, color = bgColor, modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    onClick = { onSelect(conv.id) },
+                    onLongClick = { menuConvId = conv.id },
+                    color = bgColor,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(conv.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                         Text(formatTime(conv.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
                     }
                 }
+                // 长按弹出菜单：重命名 / 删除
+                DropdownMenu(
+                    expanded = menuConvId == conv.id,
+                    onDismissRequest = { menuConvId = null }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("重命名") },
+                        onClick = { menuConvId = null; showRenameDialog = conv.id },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("删除", color = Color(0xFFD32F2F)) },
+                        onClick = { menuConvId = null; onDelete(conv.id) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp)) }
+                    )
+                }
             }
         }
+
+        // 重命名对话框
+        showRenameDialog?.let { convId ->
+            val conv = conversations.firstOrNull { it.id == convId }
+            if (conv != null) {
+                var newName by remember { mutableStateOf(conv.title) }
+                AlertDialog(
+                    onDismissRequest = { showRenameDialog = null },
+                    title = { Text("重命名对话") },
+                    text = {
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            if (newName.isNotBlank()) onRename(convId, newName)
+                            showRenameDialog = null
+                        }) { Text("确定") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showRenameDialog = null }) { Text("取消") }
+                    }
+                )
+            }
+        }
+
         Divider(color = MaterialTheme.colorScheme.surfaceVariant)
         Row(modifier = Modifier.fillMaxWidth().clickable { onNavigateToAccount() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = Primary, modifier = Modifier.size(36.dp)) {

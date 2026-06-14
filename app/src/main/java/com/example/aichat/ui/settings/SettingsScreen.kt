@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,6 +30,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -38,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -57,9 +63,13 @@ fun SettingsScreen(
     val defaultModel by viewModel.defaultModel.collectAsState()
     val temperature by viewModel.temperature.collectAsState()
     val systemPrompt by viewModel.systemPrompt.collectAsState()
+    val currentApiKey by viewModel.apiKey.collectAsState()
 
     var tempValue by remember(temperature) { mutableStateOf(temperature.toFloatOrNull() ?: 1.0f) }
     var darkMode by remember(theme) { mutableStateOf(theme == "dark") }
+    var apiKey by remember(currentApiKey) { mutableStateOf(currentApiKey) }
+    var showApiKey by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -135,7 +145,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // —— API 提供商选择：切换时自动填充推荐的 baseUrl + 推荐模型
+                    // API 提供商选择
                     DropdownSelector(
                         label = "API 提供商",
                         value = when {
@@ -161,7 +171,7 @@ fun SettingsScreen(
                         }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    // —— 默认模型：根据当前 provider 提供一份推荐列表
+                    // 默认模型
                     DropdownSelector(
                         label = "默认模型",
                         value = defaultModel,
@@ -178,7 +188,6 @@ fun SettingsScreen(
                                 "DeepSeek Chat" to "deepseek-chat",
                                 "DeepSeek Coder" to "deepseek-coder"
                             )
-                            // 根据当前模型名推断 provider，显示对应推荐列表
                             if (defaultModel.startsWith("nvidia/") || defaultModel.startsWith("meta/")
                                 || defaultModel.startsWith("mistralai/") || defaultModel.startsWith("qwen/")) {
                                 nvidiaModels
@@ -187,6 +196,29 @@ fun SettingsScreen(
                             }
                         },
                         onSelect = { viewModel.setDefaultModel(it) }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // API Key 输入框
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { newKey ->
+                            apiKey = newKey
+                            viewModel.setApiKey(newKey)
+                        },
+                        label = { Text("API Key") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showApiKey = !showApiKey }) {
+                                Icon(
+                                    if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (showApiKey) "隐藏" else "显示",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        },
+                        singleLine = true
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Temperature: ${String.format("%.1f", tempValue)}", fontSize = 14.sp)
@@ -256,6 +288,7 @@ fun SettingsScreen(
             // 隐私分组
             SectionTitle("隐私")
             Surface(
+                onClick = { showClearConfirm = true },
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.fillMaxWidth()
@@ -268,6 +301,29 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    // 清除确认对话框
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("确认清除") },
+            text = { Text("所有对话将被永久删除，此操作不可恢复。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.clearAllConversations()
+                        showClearConfirm = false
+                    },
+                    colors = androidx.compose.material3.TextButtonDefaults.colors(
+                        contentColor = Color(0xFFD32F2F)
+                    )
+                ) { Text("清除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
+            }
+        )
     }
 }
 

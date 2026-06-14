@@ -1,5 +1,6 @@
 package com.example.aichat.data.repository
 
+import com.example.aichat.data.local.db.AppDatabase
 import com.example.aichat.data.local.db.ConversationDao
 import com.example.aichat.data.local.db.MessageDao
 import com.example.aichat.data.model.Conversation
@@ -11,7 +12,8 @@ import javax.inject.Singleton
 @Singleton
 class ChatRepository @Inject constructor(
     private val conversationDao: ConversationDao,
-    private val messageDao: MessageDao
+    private val messageDao: MessageDao,
+    private val db: AppDatabase
 ) {
 
     fun getConversations(): Flow<List<Conversation>> = conversationDao.getAllConversations()
@@ -56,7 +58,7 @@ class ChatRepository @Inject constructor(
         conversation: Conversation,
         userMessage: String,
         assistantMessage: String
-    ) {
+    ) = db.runInTransaction {
         // 插入用户消息
         insertMessage(
             Message(

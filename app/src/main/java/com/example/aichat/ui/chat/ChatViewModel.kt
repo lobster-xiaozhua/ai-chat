@@ -174,19 +174,19 @@ class ChatViewModel @Inject constructor(
      *   · 完成后 assistant 消息写回持久层
      */
     fun sendMessage(text: String) {
-        // snapshot 当前图片 + 文档列表，发送后清空（注意 SnapshotStateList 没有 .value）
+        // snapshot 当前图片 + 文档列表
         val images = _pendingImageUrls.toList()
         val documents = _pendingDocumentUrls.toList()
         val docNames = _pendingDocumentNames.toMap()
         val convId = _currentConversationId.value ?: return
         if (text.isBlank() && images.isEmpty() && documents.isEmpty()) return
+
+        // 确认进入生成流程后清空附件（失败时在 catch 中恢复）
         _pendingImageUrls.clear()
         _pendingDocumentUrls.clear()
         _pendingDocumentNames.clear()
 
         val now = System.currentTimeMillis()
-        // 先创建 userMsg（持久层的消息 content 最终在文档提取完成后确定）
-        // 为避免阻塞 UI：若有文档，先占位，协程中更新；否则立即发送。
         val initialTextForHistory = text
         val userMsg = Message(
             conversationId = convId,
@@ -220,8 +220,6 @@ class ChatViewModel @Inject constructor(
                 val dataUriList = if (images.isNotEmpty()) images.toDataUriList(context, maxKb = 512) else emptyList()
 
                 // —— 文档：异步提取每个文档的文本 → 拼到用户消息文本前
-                //    注：仅对 historyForApi 与发送的 assistant 消息有影响，
-                //    持久层的 userMsg 保存为原始文本（避免 Room 内容过长）。
                 val docParts = mutableListOf<String>()
                 for (uriString in documents) {
                     val uri = try { android.net.Uri.parse(uriString) } catch (_: Exception) { null } ?: continue
@@ -230,7 +228,6 @@ class ChatViewModel @Inject constructor(
                     if (extracted != null) {
                         docParts.add("[文档：$displayName]\n---\n$extracted\n---\n")
                     } else {
-                        // 无法提取 → 仍用文件名提示 AI 这是个文档
                         docParts.add("[文档：$displayName（内容无法自动读取，请用户提供文本）]\n")
                     }
                 }
@@ -238,7 +235,7 @@ class ChatViewModel @Inject constructor(
                     (docParts.joinToString("") + "\n" + text).trim()
                 } else text
 
-                // 如果有文档，更新 historyForApi 的最后一条 user 消息（把占位换成带文档内容的版本）
+                // 如果有文档，更新 historyForApi 的最后一条 user 消息
                 if (docParts.isNotEmpty()) {
                     val lastIdx = historyForApi.indexOfLast { it.first == "user" }
                     if (lastIdx >= 0) {
@@ -286,10 +283,11 @@ class ChatViewModel @Inject constructor(
             } catch (e: com.example.aichat.data.repository.ApiException) {
                 _error.value = e.message ?: "发生错误"
                 historyForApi.removeLastOrNull()
+                restorePendingAttachments(images, documents, docNames)
             } catch (e: kotlinx.coroutines.CancellationException) {
+                // 用户主动停止 → 保留部分内容，不恢复附件（已发送的消息是有效的）
                 val partial = builder.toString()
                 if (partial.isNotEmpty()) {
-                    _streamingAssistant.value = partial
                     val finalMsg = Message(
                         conversationId = convId,
                         role = "assistant",
@@ -301,11 +299,13 @@ class ChatViewModel @Inject constructor(
                     viewModelScope.launch { runCatching { chatRepository.insertMessage(finalMsg) } }
                 } else {
                     historyForApi.removeLastOrNull()
+                    restorePendingAttachments(images, documents, docNames)
                 }
                 throw e
             } catch (e: Exception) {
                 _error.value = "消息生成失败：${e.message}"
                 historyForApi.removeLastOrNull()
+                restorePendingAttachments(images, documents, docNames)
             } finally {
                 _streamingAssistant.value = null
                 _isGenerating.value = false
@@ -313,10 +313,26 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** 发送失败时恢复附件，让用户可以重试 */
+    private fun restorePendingAttachments(
+        images: List<String>,
+        documents: List<String>,
+        docNames: Map<String, String>
+    ) {
+        for (url in images) {
+            if (url !in _pendingImageUrls) _pendingImageUrls.add(url)
+        }
+        for (uri in documents) {
+            if (uri !in _pendingDocumentUrls) {
+                _pendingDocumentUrls.add(uri)
+                docNames[uri]?.let { _pendingDocumentNames[uri] = it }
+            }
+        }
+    }
+
     fun stopGeneration() {
+        // 仅取消协程，让 CancellationException + finally 统一处理状态
         generationJob?.cancel()
-        _isGenerating.value = false
-        _streamingAssistant.value = null
     }
 
     fun clearError() { _error.value = null }

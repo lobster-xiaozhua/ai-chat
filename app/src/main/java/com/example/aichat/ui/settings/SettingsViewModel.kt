@@ -2,6 +2,7 @@ package com.example.aichat.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.aichat.data.repository.ChatRepository
 import com.example.aichat.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +13,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val chatRepository: ChatRepository
 ) : ViewModel() {
 
     private val _theme = MutableStateFlow("light")
@@ -68,4 +70,8 @@ class SettingsViewModel @Inject constructor(
     fun setSelectedModelIds(ids: List<String>) = viewModelScope.launch { settingsRepository.setSelectedModelIds(ids) }
     // 为非挂起调用提供同步快照（ModelsRepository / UI 需要时）
     fun getApiKeyNow(): String = settingsRepository.getApiKey()
+
+    fun clearAllConversations() = viewModelScope.launch {
+        chatRepository.deleteAllConversations()
+    }
 }
