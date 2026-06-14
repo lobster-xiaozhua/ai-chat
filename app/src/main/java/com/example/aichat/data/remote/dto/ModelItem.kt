@@ -1,5 +1,6 @@
 package com.example.aichat.data.remote.dto
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -13,7 +14,7 @@ import kotlinx.serialization.Serializable
 data class ModelItem(
     val id: String,
     val owned_by: String? = null,
-    val object_field: String? = null,
+    @SerialName("object") val objectType: String? = null,
 )
 
 @Serializable

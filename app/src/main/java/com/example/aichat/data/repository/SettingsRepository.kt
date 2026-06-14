@@ -49,6 +49,8 @@ class SettingsRepository @Inject constructor(
     fun getSelectedModelIds(): Flow<List<String>> = dataStore.getSelectedModelIds()
 
     // API Key (加密存储)
+    // 注意：SecureKeyStore 基于 SharedPreferences，setApiKey 使用 apply() 异步写入，
+    // 无法通过 Flow 观察变更；如需实时感知需改用 DataStore 或 EventBus。
     suspend fun setApiKey(key: String) { secureKeyStore.saveApiKey(key) }
     fun getApiKey(): String = secureKeyStore.getApiKey()
     fun clearApiKey() = secureKeyStore.clearApiKey()

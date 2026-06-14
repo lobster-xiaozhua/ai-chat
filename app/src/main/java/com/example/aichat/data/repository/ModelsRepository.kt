@@ -48,7 +48,7 @@ class ModelsRepository @Inject constructor(
 
             // 去掉 object != "model" 的条目（有些后端会返回非模型）
             val items = response.data.filter {
-                it.object_field?.equals("model", true) ?: true
+                it.objectType?.equals("model", true) ?: true
             }
 
             val grouped = items

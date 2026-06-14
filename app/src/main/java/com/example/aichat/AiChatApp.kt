@@ -30,11 +30,11 @@ class AiChatApp : Application() {
     private val versionName: String
         get() = runCatching {
             packageManager.getPackageInfo(packageName, 0).versionName
-        }.getOrNull() ?: "1.0"
+        }.onFailure { Log.w("AiChatApp", "获取版本信息失败", it) }.getOrNull() ?: "1.0"
 
     private val versionCode: Long
         get() = runCatching {
             // minSdk=29 ≥ API 28(P)，longVersionCode 始终可用
             packageManager.getPackageInfo(packageName, 0).longVersionCode
-        }.getOrNull() ?: 1L
+        }.onFailure { Log.w("AiChatApp", "获取版本信息失败", it) }.getOrNull() ?: 1L
 }

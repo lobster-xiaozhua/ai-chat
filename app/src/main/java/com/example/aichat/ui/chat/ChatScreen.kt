@@ -131,11 +131,6 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            coroutineScope.launch { listState.animateScrollToItem(messages.size - 1) }
-        }
-    }
     LaunchedEffect(streamingText) {
         if (streamingText != null) {
             coroutineScope.launch { listState.scrollToItem(messages.size) }
@@ -339,8 +334,13 @@ private fun MainChatContent(
             if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty() && pendingDocumentUrls.isEmpty()) {
                 EmptyState(onExampleClick = { example -> onInputChange(example) }, onSend = onSend)
             } else {
+                LaunchedEffect(messages.size) {
+                    if (messages.isNotEmpty()) {
+                        listState.scrollToItem(messages.size - 1)
+                    }
+                }
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    items(items = messages, key = { msg -> msg.id.takeIf { it != 0L } ?: (msg.timestamp.toString() + msg.role + msg.content.hashCode()) }) { msg ->
+                    items(items = messages, key = { msg -> msg.id.takeIf { it != 0L } ?: msg.timestamp.toString() + msg.role }) { msg ->
                         MessageBubble(
                             content = msg.content,
                             isUser = msg.role == "user",
@@ -478,7 +478,7 @@ private fun ChatInputBar(
                         }
                         Surface(onClick = { onRemoveImage(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(18.dp).align(Alignment.TopEnd)) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, softWrap = false)
                             }
                         }
                     }

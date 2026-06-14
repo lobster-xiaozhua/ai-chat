@@ -21,16 +21,16 @@ fun AppNavGraph(modifier: Modifier = Modifier) {
     ) {
         composable(Routes.Chat.route) {
             ChatScreen(
-                onNavigateToSettings = { navController.navigate(Routes.Settings.route) },
-                onNavigateToAccount = { navController.navigate(Routes.Account.route) },
-                onNavigateToModelPicker = { navController.navigate(Routes.ModelPicker.route) }
+                onNavigateToSettings = { navController.navigate(Routes.Settings.route) { launchSingleTop = true } },
+                onNavigateToAccount = { navController.navigate(Routes.Account.route) { launchSingleTop = true } },
+                onNavigateToModelPicker = { navController.navigate(Routes.ModelPicker.route) { launchSingleTop = true } }
             )
         }
         composable(Routes.Settings.route) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToCustomModel = { navController.navigate(Routes.CustomModel.route) },
-                onNavigateToModelPicker = { navController.navigate(Routes.ModelPicker.route) }
+                onNavigateToCustomModel = { navController.navigate(Routes.CustomModel.route) { launchSingleTop = true } },
+                onNavigateToModelPicker = { navController.navigate(Routes.ModelPicker.route) { launchSingleTop = true } }
             )
         }
         composable(Routes.CustomModel.route) {
@@ -39,7 +39,7 @@ fun AppNavGraph(modifier: Modifier = Modifier) {
         composable(Routes.Account.route) {
             AccountScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToSettings = { navController.navigate(Routes.Settings.route) }
+                onNavigateToSettings = { navController.navigate(Routes.Settings.route) { launchSingleTop = true } }
             )
         }
         composable(Routes.ModelPicker.route) {

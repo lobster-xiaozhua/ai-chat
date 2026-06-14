@@ -7,8 +7,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.aichat.ui.navigation.AppNavGraph
+import com.example.aichat.ui.settings.SettingsViewModel
 import com.example.aichat.ui.theme.AiChatTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -21,7 +25,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            AiChatTheme {
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            val theme by settingsViewModel.theme.collectAsState()
+            AiChatTheme(darkTheme = theme == "dark") {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

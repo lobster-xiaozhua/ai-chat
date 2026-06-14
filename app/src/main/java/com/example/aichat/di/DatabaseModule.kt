@@ -23,7 +23,10 @@ class DatabaseModule {
             context,
             AppDatabase::class.java,
             "aichat_db"
-        ).fallbackToDestructiveMigration().build()
+        )
+        // TODO: 实现正式的 Room Migration 策略，避免 schema 升级时静默删除用户数据
+        .fallbackToDestructiveMigration()
+        .build()
     }
 
     @Provides

@@ -102,8 +102,9 @@ fun AccountScreen(
             // 修改头像
             Surface(
                 onClick = {},
+                enabled = false,
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -118,8 +119,9 @@ fun AccountScreen(
             // 修改密码
             Surface(
                 onClick = {},
+                enabled = false,
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -134,8 +136,9 @@ fun AccountScreen(
             // 绑定手机
             Surface(
                 onClick = {},
+                enabled = false,
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -150,7 +153,19 @@ fun AccountScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // 退出登录
-            Text("退出登录", color = Color(0xFFD32F2F))
+            Surface(
+                onClick = {},
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "退出登录",
+                    color = Color(0xFFD32F2F),
+                    modifier = Modifier.padding(16.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
         }
     }
 }

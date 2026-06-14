@@ -139,6 +139,9 @@ class AiRepository @Inject constructor(
             thinkMode -> (temperature + 0.2).coerceAtMost(2.0)
             else -> temperature
         }
+        if (thinkMode && effectiveTemp != temperature) {
+            android.util.Log.d("AiRepository", "Think 模式：temperature 从 $temperature 调整为 $effectiveTemp")
+        }
 
         var currentMessages = buildMessageList(effectivePrompt, messages, userImageUrls)
         var depth = 0
@@ -192,13 +195,19 @@ class AiRepository @Inject constructor(
 
         val call = apiService.streamChatCompletion(url, auth, request)
         val job = coroutineContext[Job]
-        job?.invokeOnCompletion { if (call.isExecuted) runCatching { call.cancel() } }
+
+        // 协程取消时立即取消 OkHttp Call，确保网络连接被释放
+        job?.invokeOnCompletion { runCatching { call.cancel() } }
 
         val response = try {
             call.execute()
         } catch (e: java.io.IOException) {
             if (job?.isCancelled == true) return@withContext RoundResult.Text("")
             return@withContext RoundResult.Failed(ApiException.Network(e))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // 协程被取消（用户点停止），不包装为错误，直接传播
+            runCatching { call.cancel() }
+            return@withContext RoundResult.Text("")
         } catch (e: Exception) {
             return@withContext RoundResult.Failed(ApiException.Unknown(e))
         }
@@ -224,25 +233,30 @@ class AiRepository @Inject constructor(
         val toolCallBuilder = mutableMapOf<Int, ToolCallBuilder>()
         var sawToolCalls = false
 
-        EventSourceParser().parse(body.source()).collect { raw ->
-            val chunk = try {
-                json.decodeFromString<com.example.aichat.data.remote.dto.ChatCompletionChunk>(raw)
-            } catch (e: Exception) {
-                android.util.Log.w("AiRepository", "SSE chunk 解析失败: ${raw.take(100)}", e)
-                return@collect
-            }
+        try {
+            EventSourceParser().parse(body.source()).collect { raw ->
+                val chunk = try {
+                    json.decodeFromString<com.example.aichat.data.remote.dto.ChatCompletionChunk>(raw)
+                } catch (e: Exception) {
+                    android.util.Log.w("AiRepository", "SSE chunk 解析失败: ${raw.take(100)}", e)
+                    return@collect
+                }
 
-            chunk.choices.firstOrNull()?.let { choice ->
-                choice.delta?.content?.takeIf { it.isNotEmpty() }?.let { textBuilder.append(it) }
-                choice.delta?.toolCalls?.forEach { call ->
-                    sawToolCalls = true
-                    val idx = call.id?.toIntOrNull() ?: toolCallBuilder.size
-                    val existing = toolCallBuilder.getOrPut(idx) { ToolCallBuilder() }
-                    if (call.id != null) existing.id = call.id
-                    existing.name += call.function.name
-                    existing.arguments += call.function.arguments
+                chunk.choices.firstOrNull()?.let { choice ->
+                    choice.delta?.content?.takeIf { it.isNotEmpty() }?.let { textBuilder.append(it) }
+                    choice.delta?.toolCalls?.forEach { call ->
+                        sawToolCalls = true
+                        val idx = call.id?.toIntOrNull() ?: toolCallBuilder.size
+                        val existing = toolCallBuilder.getOrPut(idx) { ToolCallBuilder() }
+                        if (call.id != null) existing.id = call.id
+                        existing.name += call.function.name
+                        existing.arguments += call.function.arguments
+                    }
                 }
             }
+        } finally {
+            // 确保 ResponseBody 被关闭，防止文件描述符泄漏
+            runCatching { body.close() }
         }
 
         if (sawToolCalls && toolCallBuilder.isNotEmpty()) {

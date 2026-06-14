@@ -41,10 +41,10 @@ class EventSourceParser {
 
                 // 解析 data: 行（支持 "data:xxx" 与 "data: xxx"）
                 if (line.startsWith("data:")) {
-                    val value = when {
-                        line.startsWith("data: ") -> line.substring(6)
-                        else -> line.substring(5)
-                    }
+                    val value = if (line.length > 5) {
+                        // Skip "data:" and any leading spaces (SSE spec allows "data: " with optional spaces)
+                        line.substring(5).dropWhile { it == ' ' }
+                    } else ""
 
                     // 检测结束标记（可能出现在多行 data 的最后一行）
                     val trimmed = value.trim()
@@ -56,6 +56,7 @@ class EventSourceParser {
                             buffer.clear()
                         }
                         channel.close()
+                        runCatching { source.close() }
                         break
                     }
 
