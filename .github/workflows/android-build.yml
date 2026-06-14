@@ -59,6 +59,8 @@ jobs:
       - name: 🐛 报告构建错误
         if: failure()
         run: |
+          echo "=== Kotlin 编译错误 ==="
+          grep -E "^e: |error:|Error:" build-debug.log 2>/dev/null | head -30 || echo "No error lines found"
           echo "=== 构建日志（最后200行）==="
           tail -200 build-debug.log 2>/dev/null || echo "No log available"
 
@@ -68,11 +70,15 @@ jobs:
         with:
           script: |
             const { execSync } = require('child_process');
+            let errors = 'No errors found';
             let log = 'No log available';
+            try {
+              errors = execSync('grep -E "^e: |error:|Error:" build-debug.log | head -30', { encoding: 'utf8' });
+            } catch (e) {}
             try {
               log = execSync('tail -200 build-debug.log', { encoding: 'utf8', maxBuffer: 1024 * 1024 });
             } catch (e) {}
-            const body = `## Debug APK 构建失败\n\n**Commit:** ${context.sha}\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n### 构建日志（最后200行）\n\`\`\`\n${log}\n\`\`\``;
+            const body = `## Debug APK 构建失败\n\n**Commit:** ${context.sha}\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n### 编译错误\n\`\`\`\n${errors}\n\`\`\`\n\n### 构建日志（最后200行）\n\`\`\`\n${log}\n\`\`\``;
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
