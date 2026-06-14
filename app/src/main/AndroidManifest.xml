@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 网络访问 — 多模态与流式对话必须 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- 拍照功能需要 CAMERA 权限（TakePicture contract 在运行时动态申请，manifest 必须声明） -->
+
+    <!-- 拍照功能：TakePicture contract 仅在用户主动点击拍照时申请，
+         manifest 静态声明是运行时授权的前提。
+         荣耀 MagicOS 对 CAMERA 权限做了二次弹窗，必须先申请后使用 -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <!-- Android 13（API 33）+ 通知权限，用于系统通知栏展示 -->
+
+    <!-- Android 13（API 33）+：运行时通知权限，用于后台长任务完成通知、
+         崩溃通知等；荣耀 90GT 的 MagicOS 10.0/10.1/11.0（安卓 16）会在未授权时静默拦截 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Android 13+ 分媒体类型读取权限（从相册选择图片时系统自动授予，无需动态申请） -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <application
         android:name=".AiChatApp"
@@ -16,20 +25,36 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AiChat"
-        android:networkSecurityConfig="@xml/network_security_config">
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false">
+
+        <!-- 主 Activity：
+             · resizeableActivity=true → 安卓 10+ 全屏/分屏/悬浮窗/自由窗口统一支持，
+               荣耀 MagicOS 的"智慧多窗"依赖此标志；未声明会进入兼容模式（黑边/拉伸）
+             · windowSoftInputMode=adjustResize → Compose 的 IME insets 正常驱动输入栏，
+               不遮挡聊天输入框
+             · 未设置 android:screenOrientation → 遵循系统自动旋转规则（MagicOS 10+
+               会强制拦截强制竖屏代码，可能触发布局异常）
+             · hardwareAccelerated=true → 保证高刷新率（120Hz/144Hz）动画不受绘制层限制
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.AiChat"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:resizeableActivity="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|density|fontScale"
+            android:hardwareAccelerated="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- FileProvider：拍照后 content:// URI，避免 Android 7+ 暴露 file:// URI 异常
-              authority 使用 "${applicationId}.fileprovider，与 ImageUtils.kt 中的 getUriForFile 保持一致 -->
+        <!-- FileProvider：拍照后生成 content:// URI；
+             authority 使用 "${applicationId}.fileprovider，与 ImageUtils.kt 中的
+             FileProvider.getUriForFile() 保持一致
+             exported=false + grantUriPermissions=true → 仅对授予读写权限的相机 app 可见 -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

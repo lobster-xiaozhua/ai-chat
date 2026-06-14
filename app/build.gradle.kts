@@ -8,19 +8,25 @@ plugins {
 
 android {
     namespace = "com.example.aichat"
-    compileSdk = 35
+    // compileSdk ≥ 36：安卓 16 正式 API 级别，确保能使用最新系统 API 与资源
+    // （MagicOS 10.0+ 会在 targetSdk < 33 时将 app 标记为"兼容模式"，
+    // 导致后台查杀升级、状态栏显示异常）
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.aichat"
+        // minSdk = 29：安卓 10，覆盖荣耀 90GT（出厂 MagicOS 7.2 / Android 13）
+        // 以及所有可升级到 Android 10+ 的荣耀/华为机型
         minSdk = 29
-        targetSdk = 35
+        // targetSdk = 36：安卓 16 — MagicOS 10.0+ 强要求
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         vectorDrawables { useSupportLibrary = true }
 
         // 仅打包 arm 架构 so 库 —— Android 10+ 真机均为 64 位或 32 位 ARM
-        // 砍掉 x86/x86_64 模拟器架构可使 APK 体积减少 30%+
+        // armeabi-v7a 兼容老机型，arm64-v8a 为荣耀 90GT 主流架构
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 

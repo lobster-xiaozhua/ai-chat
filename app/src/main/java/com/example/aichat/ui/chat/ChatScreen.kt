@@ -11,9 +11,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -37,6 +41,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,9 +58,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.aichat.data.model.Conversation
@@ -313,14 +326,20 @@ private fun MainChatContent(
     val jsonMode = chatViewModel.jsonMode.collectAsState().value
 
     Scaffold(
+        // 让 Scaffold 不自动处理 insets — 我们手动精确处理
+        // （MagicOS 10+ / Android 16 在内容区域绘制在系统栏下方，必须手动控制）
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("新对话", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = { IconButton(onClick = onMenuClick) { Icon(Icons.Default.Menu, contentDescription = "菜单") } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                modifier = Modifier.statusBarsPadding()
             )
         },
         bottomBar = {
+            // navigationBarsPadding：避免被三键/手势导航栏遮挡
+            // imePadding：输入法弹出时输入栏自动上移
             ChatInputBar(
                 inputText = inputText,
                 onInputChange = onInputChange,
@@ -340,11 +359,16 @@ private fun MainChatContent(
                 onSend = onSend,
                 onStop = onStop,
                 onModelClick = onModelClick,
-                onOpenPlusSheet = onOpenPlusSheet
+                onOpenPlusSheet = onOpenPlusSheet,
+                modifier = Modifier.navigationBarsPadding().imePadding()
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
+        // innerPadding 只包含 topBar / bottomBar 的高度 ——
+        // 我们在 topBar / bottomBar 里已经加了系统栏 padding，
+        // 所以这里不需要再加；但需要在内容区域底部留一点导航栏的 space
+        // （输入法弹出时被 imePadding 覆盖了，输入法收起时手势导航栏会显示）
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty() && pendingDocumentUrls.isEmpty()) {
                 EmptyState(onExampleClick = { example -> onInputChange(example); onSend() })
@@ -404,9 +428,10 @@ private fun ChatInputBar(
     onSend: () -> Unit,
     onStop: () -> Unit,
     onModelClick: () -> Unit,
-    onOpenPlusSheet: () -> Unit
+    onOpenPlusSheet: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column {
+    Column(modifier = modifier) {
         Divider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 1.dp)
 
         Surface(
