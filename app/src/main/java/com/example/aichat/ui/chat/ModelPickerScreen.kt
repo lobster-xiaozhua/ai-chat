@@ -33,8 +33,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,6 +53,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -93,11 +94,9 @@ class ModelPickerViewModel @Inject constructor(
     fun refresh(force: Boolean = true) {
         viewModelScope.launch {
             _loading.value = true
-            val baseUrl = settingsRepository.getBaseUrl().let { flow ->
-                var value = "https://api.deepseek.com"
-                flow.collect { value = it; return@collect }
-                value
-            }
+            // getBaseUrl() 返回 Flow（DataStore 无限流），必须用 first() 取首个值
+            // 原写法 flow.collect { return@collect } 会永远挂起（collect 是终端操作符）
+            val baseUrl = settingsRepository.getBaseUrl().first()
             val apiKey = settingsRepository.getApiKey()
             val result = modelsRepository.getGroupedModels(baseUrl, apiKey, force)
             _groups.value = result.getOrElse { emptyList() }
@@ -107,7 +106,7 @@ class ModelPickerViewModel @Inject constructor(
 
     fun toggleSelected(id: String) {
         _selectedIds.value = _selectedIds.value.toMutableList().also {
-            if (it.remove(id)) Unit else it.add(id))
+            if (it.remove(id)) Unit else it.add(id)
         }
     }
 
@@ -245,19 +244,5 @@ fun ModelPickerScreen(onBack: () -> Unit = {}) {
                 }
             }
         }
-    }
-}
-
-// helper: collectAsState helper (avoid import issue)
-@Composable
-private fun <T> StateFlow<T>.collectAsState(): androidx.compose.runtime.State<T> {
-    return androidx.compose.runtime.collectAsState(this).value.let {
-        val state = kotlinx.coroutines.flow.flow { emit(it) }
-        androidx.compose.runtime.produceState(initialValue = this@collectAsState.value, this@collectAsState) {
-            this@collectAsState.collect { value = it }
-        }
-    }
-    return object : androidx.compose.runtime.State<T> {
-        override val value: T get() = this@collectAsState.value
     }
 }

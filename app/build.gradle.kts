@@ -119,8 +119,8 @@ dependencies {
     implementation("androidx.paging:paging-runtime-ktx:3.3.2")
     implementation("androidx.paging:paging-compose:3.3.2")
 
-    implementation("com.google.dagger:hilt-android:2.59.2")
-    ksp("com.google.dagger:hilt-android-compiler:2.59.2")
+    implementation("com.google.dagger:hilt-android:2.58")
+    ksp("com.google.dagger:hilt-android-compiler:2.58")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
@@ -132,7 +132,7 @@ dependencies {
     // security-crypto 已于 2024 年被 Google 废弃（1.1.0-alpha07 停更），
     // 改用社区维护 fork dev.spght:encryptedprefs-ktx，API 完全兼容，Tink 依赖持续更新。
     // 迁移只需替换依赖坐标 + import 路径（androidx.security.crypto → dev.spght.encryptedprefs）。
-    implementation("dev.spght:encryptedprefs-ktx:1.1.0")
+    implementation("dev.spght:encryptedprefs-ktx:1.1.1")
 
     implementation("io.coil-kt.coil3:coil-compose:3.4.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.4.0")
