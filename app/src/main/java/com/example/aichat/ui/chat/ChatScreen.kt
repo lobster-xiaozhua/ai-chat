@@ -79,13 +79,21 @@ fun ChatScreen(
     val streamingText by chatViewModel.streamingAssistant.collectAsState()
     val conversations by conversationListViewModel.conversations.collectAsState()
 
-    // 待发送图片（从图片选择器获取的 content:// URI 字符串列表）
+    // 待发送图片 / 文档（从选择器获取的 content:// URI 字符串列表）
     val pendingImageUrls by chatViewModel.pendingImageUrls.collectAsState()
+    val pendingDocumentUrls by chatViewModel.pendingDocumentUrls.collectAsState()
+    val pendingDocumentNames by chatViewModel.pendingDocumentNames.collectAsState()
 
     // —— 图片选择器（Android 官方 Photo Picker）—— 在此处注册，供 Photo 按钮调用
     val imagePicker = rememberImagePicker(onPicked = { newUris ->
         chatViewModel.addImageUrls(newUris)
     })
+
+    // —— 文档选择器（OpenMultipleDocuments，支持 text + pdf + json 等）—— 在此处注册
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val documentPicker = rememberDocumentPicker { urisWithNames ->
+        chatViewModel.addDocumentUrls(urisWithNames)
+    }
 
     var inputText by remember { mutableStateOf("") }
     var drawerOpen by remember { mutableStateOf(false) }
@@ -134,9 +142,11 @@ fun ChatScreen(
                 listState = listState,
                 inputText = inputText,
                 pendingImageUrls = pendingImageUrls,
+                pendingDocumentUrls = pendingDocumentUrls,
+                pendingDocumentNames = pendingDocumentNames,
                 onInputChange = { inputText = it },
                 onSend = {
-                    if (inputText.isNotBlank() || pendingImageUrls.isNotEmpty()) {
+                    if (inputText.isNotBlank() || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) {
                         chatViewModel.sendMessage(inputText.trim())
                         inputText = ""
                     }
@@ -189,9 +199,11 @@ fun ChatScreen(
             listState = listState,
             inputText = inputText,
             pendingImageUrls = pendingImageUrls,
+            pendingDocumentUrls = pendingDocumentUrls,
+            pendingDocumentNames = pendingDocumentNames,
             onInputChange = { inputText = it },
             onSend = {
-                if (inputText.isNotBlank() || pendingImageUrls.isNotEmpty()) {
+                if (inputText.isNotBlank() || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) {
                     chatViewModel.sendMessage(inputText.trim())
                     inputText = ""
                 }
@@ -208,7 +220,9 @@ fun ChatScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             PlusBottomSheet(
                 onDismiss = { showPlusSheet = false },
-                onPickPhoto = { imagePicker.pickImages(maxItems = 9) },
+                onPickPhoto = { imagePicker.pickImages(maxItems = 9); showPlusSheet = false },
+                onPickFromCamera = { imagePicker.pickFromCamera(); showPlusSheet = false },
+                onPickDocument = { documentPicker.pickDocuments(); showPlusSheet = false },
                 jsonMode = chatViewModel.jsonMode.collectAsState().value,
                 onToggleJsonMode = { chatViewModel.toggleJsonMode() }
             )
@@ -277,6 +291,8 @@ private fun MainChatContent(
     listState: androidx.compose.foundation.lazy.LazyListState,
     inputText: String,
     pendingImageUrls: List<String>,
+    pendingDocumentUrls: List<String>,
+    pendingDocumentNames: Map<String, String>,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
@@ -312,6 +328,9 @@ private fun MainChatContent(
                 onToggleJsonMode = { chatViewModel.toggleJsonMode() },
                 pendingImageUrls = pendingImageUrls,
                 onRemoveImage = { url -> chatViewModel.removeImageUrl(url) },
+                pendingDocumentUrls = pendingDocumentUrls,
+                pendingDocumentNames = pendingDocumentNames,
+                onRemoveDocument = { url -> chatViewModel.removeDocumentUrl(url) },
                 onSend = onSend,
                 onStop = onStop,
                 onModelClick = onModelClick,
@@ -321,7 +340,7 @@ private fun MainChatContent(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty()) {
+            if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty() && pendingDocumentUrls.isEmpty()) {
                 EmptyState(onExampleClick = { example -> onInputChange(example); onSend() })
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
@@ -373,6 +392,9 @@ private fun ChatInputBar(
     onToggleJsonMode: () -> Unit,
     pendingImageUrls: List<String>,
     onRemoveImage: (String) -> Unit,
+    pendingDocumentUrls: List<String>,
+    pendingDocumentNames: Map<String, String>,
+    onRemoveDocument: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
     onModelClick: () -> Unit,
@@ -405,6 +427,7 @@ private fun ChatInputBar(
                             if (inputText.isEmpty()) {
                                 val tip = buildString {
                                     if (pendingImageUrls.isNotEmpty()) append("描述这些图片…")
+                                    else if (pendingDocumentUrls.isNotEmpty()) append("描述这些文档…")
                                     else if (thinkMode) append("深度思考中，请输入…")
                                     else if (searchMode) append("联网搜索模式，请输入…")
                                     else append("Type a message or hold to speak")
@@ -445,11 +468,11 @@ private fun ChatInputBar(
                     Surface(
                         onClick = onOpenPlusSheet,
                         shape = CircleShape,
-                        color = if (jsonMode || pendingImageUrls.isNotEmpty()) Primary else MaterialTheme.colorScheme.surface,
+                        color = if (jsonMode || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) Primary else MaterialTheme.colorScheme.surface,
                         modifier = Modifier.size(30.dp)
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("+", color = if (jsonMode || pendingImageUrls.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text("+", color = if (jsonMode || pendingImageUrls.isNotEmpty() || pendingDocumentUrls.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -479,6 +502,39 @@ private fun ChatInputBar(
                         Surface(onClick = { onRemoveImage(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(18.dp).align(Alignment.TopEnd)) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // —— 已选文档 Chip 预览（位于图片下方，独立一行）
+        if (pendingDocumentUrls.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                pendingDocumentUrls.forEach { url ->
+                    val name = pendingDocumentNames[url] ?: "文档"
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("📄", fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
+                            Text(
+                                text = name.take(20),
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Surface(onClick = { onRemoveDocument(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(16.dp).padding(start = 4.dp)) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text("×", color = Color.White, fontSize = 10.sp)
+                                }
                             }
                         }
                     }
@@ -541,6 +597,8 @@ private fun ModeChip(
 fun PlusBottomSheet(
     onDismiss: () -> Unit,
     onPickPhoto: () -> Unit,
+    onPickFromCamera: () -> Unit,
+    onPickDocument: () -> Unit,
     jsonMode: Boolean,
     onToggleJsonMode: () -> Unit
 ) {
@@ -556,9 +614,9 @@ fun PlusBottomSheet(
                     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f), modifier = Modifier.size(38.dp, 4.dp)) {}
                 }
                 Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    SheetAction(icon = "📷", label = "Camera", onClick = { /* TODO: Camera intent */ onDismiss() })
-                    SheetAction(icon = "🖼️", label = "Photo", onClick = { onPickPhoto(); onDismiss() })
-                    SheetAction(icon = "📄", label = "Document", onClick = { /* TODO: file picker */ onDismiss() })
+                    SheetAction(icon = "📷", label = "Camera", onClick = onPickFromCamera)
+                    SheetAction(icon = "🖼️", label = "Photo", onClick = onPickPhoto)
+                    SheetAction(icon = "📄", label = "Document", onClick = onPickDocument)
                 }
                 Divider(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {

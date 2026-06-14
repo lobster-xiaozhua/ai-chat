@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    FileProvider 允许暴露的路径白名单。
+      · cache-path/camera    → 拍照临时输出文件（app 私有缓存目录）
+      · cache-path/documents → 文档临时复制（当前未用，预留字段）
+-->
+<paths>
+    <cache-path name="captured_images" path="camera/" />
+    <cache-path name="documents" path="documents/" />
+</paths>

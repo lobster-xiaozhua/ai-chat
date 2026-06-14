@@ -7,13 +7,15 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.InputStream
 
 /* ============================================================================
- * ImageUtils —— content:// URI 读取 + MIME 检测 + base64 编码
+ * ImageUtils —— content:// URI 读取 + MIME 检测 + base64 编码 + 拍照临时输出
  *
  *   · contentUriToDataUri(uri)  →  "data:image/jpeg;base64,/9j/4AAQ..."
  *   · contentUriToInputStream(uri)  →  InputStream (调用方负责关闭)
@@ -21,7 +23,8 @@ import java.io.InputStream
  *   · getImageFileName(uri)  →  显示用文件名（可能为空）
  *   · isImageUri(uri)  →  是否为图片 MIME
  *   · compressToJpegBytes(uri, maxSize)  →  压缩到指定尺寸内（降低 API 传输成本）
- * ========================================================================== */
+ *   · createImageFileUri(context)  →  为 TakePicture contract 生成拍照输出 URI
+ * ============================================================================ */
 
 /**
  * 把 content:// URI 转成 data URI（base64 内联），可以直接塞进 JSON 发给多模态 API。
@@ -166,4 +169,19 @@ suspend fun List<String>.toDataUriList(context: Context, maxKb: Int = 1024): Lis
         uri.contentUriToDataUri(context, maxKb)?.let { result.add(it) }
     }
     return result
+}
+
+/**
+ * 在应用私有 cache 目录下创建一个新的 JPEG 临时文件，并通过 FileProvider 返回
+ * content:// URI。用于给 TakePicture contract 作为拍照输出目标。
+ *
+ *   · 目录：cacheDir/camera/IMG_{timestamp}.jpg
+ *   · authority："${context.packageName}.fileprovider"（与 AndroidManifest.xml 中 provider
+ *     的 android:authorities 字段保持一致；引用由构建工具替换 applicationId）
+ *   · 权限：调用方必须通过 Intent.addFlags(FLAG_GRANT_WRITE_URI_PERMISSION) 授权给相机
+ */
+fun createImageFileUri(context: Context): Uri {
+    val dir = File(context.cacheDir, "camera").apply { if (!exists()) mkdirs() }
+    val file = File(dir, "IMG_${System.currentTimeMillis()}.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }

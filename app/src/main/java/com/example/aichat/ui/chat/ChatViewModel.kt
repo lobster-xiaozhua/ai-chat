@@ -7,6 +7,8 @@ import com.example.aichat.data.model.Message
 import com.example.aichat.data.repository.AiRepository
 import com.example.aichat.data.repository.ChatRepository
 import com.example.aichat.data.repository.SettingsRepository
+import com.example.aichat.util.extractText
+import com.example.aichat.util.toDocumentEntry
 import com.example.aichat.util.toDataUriList
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -55,6 +57,12 @@ class ChatViewModel @Inject constructor(
     // 待发送图片附件（content:// URI 字符串列表）
     private val _pendingImageUrls = MutableStateFlow<List<String>>(emptyList())
     val pendingImageUrls: StateFlow<List<String>> = _pendingImageUrls.asStateFlow()
+
+    // 待发送文档（uri 字符串列表 + uri→文件名映射）
+    private val _pendingDocumentUrls = MutableStateFlow<List<String>>(emptyList())
+    val pendingDocumentUrls: StateFlow<List<String>> = _pendingDocumentUrls.asStateFlow()
+    private val _pendingDocumentNames = MutableStateFlow<Map<String, String>>(emptyMap())
+    val pendingDocumentNames: StateFlow<Map<String, String>> = _pendingDocumentNames.asStateFlow()
 
     // 用户已选模型列表（用于快速切换）
     private val _selectedModelIds = MutableStateFlow(emptyList<String>())
@@ -114,6 +122,44 @@ class ChatViewModel @Inject constructor(
         _pendingImageUrls.value = emptyList()
     }
 
+    /* ---------- 对外操作：文档附件 ---------- */
+
+    /**
+     * 添加一批文档（通常来自 OpenMultipleDocuments contract 的返回）。
+     * 入参是 (uri 字符串 → 显示用文件名) 的列表。
+     */
+    fun addDocumentUrls(urisWithNames: List<Pair<String, String>>) {
+        if (urisWithNames.isEmpty()) return
+        val currentUrls = _pendingDocumentUrls.value
+        val currentNames = _pendingDocumentNames.value.toMutableMap()
+        val added = mutableListOf<String>()
+        for ((uri, name) in urisWithNames) {
+            if (uri !in currentUrls && uri !in added) {
+                added.add(uri)
+                currentNames[uri] = name.ifEmpty { "未命名文档" }
+            }
+        }
+        if (added.isNotEmpty()) {
+            _pendingDocumentUrls.value = currentUrls + added
+            _pendingDocumentNames.value = currentNames
+        }
+    }
+
+    /** 从待发送列表移除一个文档 */
+    fun removeDocumentUrl(uri: String) {
+        val currentUrls = _pendingDocumentUrls.value - uri
+        val currentNames = _pendingDocumentNames.value.toMutableMap()
+        currentNames.remove(uri)
+        _pendingDocumentUrls.value = currentUrls
+        _pendingDocumentNames.value = currentNames
+    }
+
+    /** 清空待发送文档列表 */
+    fun clearDocuments() {
+        _pendingDocumentUrls.value = emptyList()
+        _pendingDocumentNames.value = emptyMap()
+    }
+
     /* ---------- 对外操作：会话与消息 ---------- */
 
     fun setConversation(conversationId: String) {
@@ -123,6 +169,7 @@ class ChatViewModel @Inject constructor(
         _isGenerating.value = false
         _streamingAssistant.value = null
         clearPendingImages()
+        clearDocuments()
 
         viewModelScope.launch {
             val history = chatRepository.getMessagesAsList(conversationId)
@@ -135,29 +182,37 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 发送消息 —— 支持纯文本、纯图片、文本+图片三种组合。
+     * 发送消息 —— 支持纯文本、纯图片、文本+图片、文本+文档、文本+图片+文档
      *   · 文本/图片立即写入消息列表（消息气泡可见）
-     *   · 异步 content:// → data://（base64）转换，供多模态 API 使用
+     *   · 文档内容异步提取 → 嵌入用户消息文本前 —— AI 按上下文处理
+     *   · content:// → data://（base64）转换，供多模态 API 使用
      *   · 流式响应期间逐 token 更新界面
      *   · 完成后 assistant 消息写回持久层
      */
     fun sendMessage(text: String) {
-        // snapshot 当前图片列表，发送后清空
+        // snapshot 当前图片 + 文档列表，发送后清空
         val images = _pendingImageUrls.value
-        if (text.isBlank() && images.isEmpty()) return
+        val documents = _pendingDocumentUrls.value
+        val docNames = _pendingDocumentNames.value
+        if (text.isBlank() && images.isEmpty() && documents.isEmpty()) return
         _pendingImageUrls.value = emptyList()
+        _pendingDocumentUrls.value = emptyList()
+        _pendingDocumentNames.value = emptyMap()
 
         val now = System.currentTimeMillis()
+        // 先创建 userMsg（持久层的消息 content 最终在文档提取完成后确定）
+        // 为避免阻塞 UI：若有文档，先占位，协程中更新；否则立即发送。
+        val initialTextForHistory = text
         val userMsg = Message(
             conversationId = currentConversationId,
             role = "user",
-            content = text,
+            content = initialTextForHistory,
             imageUrls = Message.encodeImageUrls(images),
             timestamp = now
         )
 
         _messages.value = _messages.value + userMsg
-        historyForApi.add("user" to text)
+        historyForApi.add("user" to initialTextForHistory)
         viewModelScope.launch { runCatching { chatRepository.insertMessage(userMsg) } }
 
         _isGenerating.value = true
@@ -176,8 +231,37 @@ class ChatViewModel @Inject constructor(
 
                 val temperature = _temperatureStr.value.toDoubleOrNull() ?: 1.0
 
-                // 把 content:// URI 异步转换为 base64 data URI（多模态 API 需要）
+                // —— 图片：content:// 异步 → base64 data URI（多模态 API 需要）
                 val dataUriList = if (images.isNotEmpty()) images.toDataUriList(context, maxKb = 512) else emptyList()
+
+                // —— 文档：异步提取每个文档的文本 → 拼到用户消息文本前
+                //    注：仅对 historyForApi 与发送的 assistant 消息有影响，
+                //    持久层的 userMsg 保存为原始文本（避免 Room 内容过长）。
+                val docParts = mutableListOf<String>()
+                for (uriString in documents) {
+                    val uri = try { android.net.Uri.parse(uriString) } catch (_: Exception) { null } ?: continue
+                    val extracted = uri.extractText(context)
+                    val displayName = docNames[uriString] ?: uri.getFileName(context)
+                    if (extracted != null) {
+                        docParts.add("[文档：$displayName]\n---\n$extracted\n---\n")
+                    } else {
+                        // 无法提取 → 仍用文件名提示 AI 这是个文档
+                        docParts.add("[文档：$displayName（内容无法自动读取，请用户提供文本）]\n")
+                    }
+                }
+                val combinedUserText = if (docParts.isNotEmpty()) {
+                    (docParts.joinToString("") + "\n" + text).trim()
+                } else text
+
+                // 如果有文档，更新 historyForApi 的最后一条 user 消息（把占位换成带文档内容的版本）
+                if (docParts.isNotEmpty()) {
+                    val lastIdx = historyForApi.indexOfLast { it.first == "user" }
+                    if (lastIdx >= 0) {
+                        val newHistory = historyForApi.toMutableList()
+                        newHistory[lastIdx] = "user" to combinedUserText
+                        historyForApi = newHistory
+                    }
+                }
 
                 aiRepository.streamChat(
                     messages = historyForApi,
