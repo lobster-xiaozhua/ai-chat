@@ -55,6 +55,29 @@ jobs:
           name: build-debug-log
           path: build-debug.log
 
+      - name: 🐛 报告构建错误
+        if: failure()
+        run: |
+          ERROR_LOG=$(tail -80 build-debug.log 2>/dev/null || echo "No log available")
+          echo "ERROR_LOG<<EOFMARKER" >> $GITHUB_ENV
+          echo "$ERROR_LOG" >> $GITHUB_ENV
+          echo "EOFMARKER" >> $GITHUB_ENV
+
+      - name: 📝 创建构建失败 Issue
+        if: failure() && github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const log = process.env.ERROR_LOG || 'No log available';
+            const body = `## Debug APK 构建失败\n\n**Commit:** ${context.sha}\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n### 构建日志（最后80行）\n\`\`\`\n${log}\n\`\`\``;
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🐛 Debug 构建失败 - ${context.sha.substring(0, 8)}`,
+              body: body,
+              labels: ['bug', 'ci-failure']
+            });
+
       - name: 🔍 定位产物
         id: find-artifact
         run: |
