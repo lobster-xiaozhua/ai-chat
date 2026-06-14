@@ -54,18 +54,17 @@ jobs:
           gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build-debug.log
         continue-on-error: true
 
-      - name: 📋 输出构建日志
+      - name: 📤 上传构建日志
         if: always()
-        run: |
-          echo "=== BUILD LOG (last 80 lines) ===" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -80 build-debug.log >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-debug-log
+          path: build-debug.log
 
       - name: ❌ 检查构建结果
         if: steps.build-debug.outcome != 'success'
         run: |
-          echo "Debug build failed! Check the build log above."
+          echo "Debug build failed! Download build-debug-log artifact for details."
           exit 1
 
       - name: 🔍 定位产物
