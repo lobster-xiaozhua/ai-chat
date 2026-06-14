@@ -1,8 +1,8 @@
 package com.example.aichat.data.security
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import dev.spght.encryptedprefs.EncryptedSharedPreferences
+import dev.spght.encryptedprefs.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

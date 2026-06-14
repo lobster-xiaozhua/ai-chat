@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 16 暗色模式适配：系统强制暗色时，windowBackground 必须为深色，
+     否则 edge-to-edge 下状态栏/导航栏区域会出现白色闪烁。
+     Compose 主题由 AiChatTheme 动态控制，此处仅影响启动闪屏。 -->
+<resources>
+    <style name="Theme.AiChat" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

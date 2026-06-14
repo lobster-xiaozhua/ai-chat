@@ -25,11 +25,22 @@ class AiChatApp : Application() {
     }
 
     private val versionName: String
-        get() = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "1.0"
-
-    private val versionCode: Int
         get() = runCatching {
-            @Suppress("DEPRECATION")
-            packageManager.getPackageInfo(packageName, 0).versionCode
-        }.getOrNull() ?: 1
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(packageName, 0).versionName
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0).versionName
+            }
+        }.getOrNull() ?: "1.0"
+
+    private val versionCode: Long
+        get() = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageManager.getPackageInfo(packageName, 0).longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0).versionCode.toLong()
+            }
+        }.getOrNull() ?: 1L
 }

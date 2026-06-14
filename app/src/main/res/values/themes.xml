@@ -1,7 +1,13 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Android 16 强制 edge-to-edge，不再允许 windowOptOutEdgeToEdgeEnforcement。
+         主题必须适配暗色模式，否则系统强制暗色时背景会变黑但文字仍为浅色。
+         · statusBarColor=transparent → 内容绘制到状态栏下方（edge-to-edge 必需）
+         · windowBackground 不硬编码白色 → 由 Compose 主题控制实际背景色
+         · 不设置 windowLightStatusBar → 交由 Compose isSystemInDarkTheme() 动态切换
+    -->
     <style name="Theme.AiChat" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowBackground">@android:color/white</item>
     </style>
 </resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 备份排除规则：
+     · secure_prefs / secure_prefs.xml — EncryptedSharedPreferences 加密存储，
+       恢复时密钥已不存在（Android Keystore 不参与备份），会导致运行时崩溃。
+     · aichat-db / aichat-db-wal / aichat-db-shm — Room 数据库，
+       恢复后可能与当前 schema 不匹配。
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="secure_prefs.xml" />
+    <exclude domain="sharedpref" path="secure_prefs" />
+    <exclude domain="database" path="aichat-db" />
+    <exclude domain="database" path="aichat-db-wal" />
+    <exclude domain="database" path="aichat-db-shm" />
+    <exclude domain="file" path="camera/" />
+</full-backup-content>
