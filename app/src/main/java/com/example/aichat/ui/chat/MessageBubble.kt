@@ -68,7 +68,7 @@ fun MessageBubble(
 
                 // —— 文本区域
                 if (content.isNotEmpty() || (imageUrls.isEmpty() && !isStreaming)) {
-                    Box(modifier = Modifier.padding(top = if (imageUrls.isNotEmpty() && content.isNotEmpty()) then 6.dp else 0.dp)) {
+                    Box(modifier = Modifier.padding(top = if (imageUrls.isNotEmpty() && content.isNotEmpty()) 6.dp else 0.dp)) {
                         if (content.isEmpty()) {
                             Text("…", color = textColor.copy(alpha = 0.4f))
                         } else if (isStreaming) {
