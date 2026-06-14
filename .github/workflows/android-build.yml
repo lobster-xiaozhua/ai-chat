@@ -70,7 +70,14 @@ jobs:
       - name: 🔍 定位产物
         id: find-artifact
         run: |
-          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
+          echo "=== 搜索 APK ==="
+          find app/build/outputs -name "*.apk" -type f 2>/dev/null || true
+          APK=$(find app/build/outputs/apk/debug -name "*.apk" -type f 2>/dev/null | head -1)
+          if [ -z "$APK" ]; then
+            echo "❌ 未找到 Debug APK"
+            ls -lR app/build/outputs/ 2>/dev/null || echo "outputs 目录不存在"
+            exit 1
+          fi
           echo "apk-path=$APK" >> $GITHUB_OUTPUT
           echo "✅ 找到: $APK"
           ls -lh "$APK"
@@ -137,12 +144,14 @@ jobs:
       - name: 🔍 定位产物
         id: find-artifacts
         run: |
-          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          RELEASE_AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -1)
+          echo "=== 搜索 Release 产物 ==="
+          find app/build/outputs -name "*.apk" -o -name "*.aab" -type f 2>/dev/null || true
+          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" -type f 2>/dev/null | head -1)
+          RELEASE_AAB=$(find app/build/outputs/bundle/release -name "*.aab" -type f 2>/dev/null | head -1)
           echo "release-apk=$RELEASE_APK" >> $GITHUB_OUTPUT
           echo "release-aab=$RELEASE_AAB" >> $GITHUB_OUTPUT
-          [ -n "$RELEASE_APK" ] && ls -lh "$RELEASE_APK"
-          [ -n "$RELEASE_AAB" ] && ls -lh "$RELEASE_AAB"
+          [ -n "$RELEASE_APK" ] && ls -lh "$RELEASE_APK" || echo "⚠️ 未找到 Release APK"
+          [ -n "$RELEASE_AAB" ] && ls -lh "$RELEASE_AAB" || echo "⚠️ 未找到 Release AAB"
 
       - name: 📤 上传 Release APK
         if: steps.find-artifacts.outputs.release-apk != ''
