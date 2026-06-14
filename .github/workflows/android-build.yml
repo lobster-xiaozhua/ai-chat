@@ -72,7 +72,7 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
       - name: 🔨 构建 Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
+        run: set -o pipefail && ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
 
       - name: 🔍 定位产物
         id: find-artifact
