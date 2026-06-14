@@ -36,23 +36,17 @@ jobs:
       - name: 🤖 设置 Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 🚀 安装 Gradle ${{ env.GRADLE_VERSION }} + 缓存
+      - name: 🚀 Gradle 缓存加速
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
-
-      - name: 🔍 诊断环境
-        run: |
-          echo "=== Java ===" && java -version 2>&1
-          echo "=== Gradle ===" && gradle --version 2>&1 || echo "gradle not found"
-          echo "=== ANDROID_HOME ===" && echo $ANDROID_HOME && ls $ANDROID_HOME 2>/dev/null || true
 
       - name: 🔨 构建 Debug APK
         id: build-debug
         run: |
+          chmod +x ./gradlew
           set -o pipefail
-          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build-debug.log
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build-debug.log
 
       - name: 📤 上传构建日志
         if: failure()
@@ -128,17 +122,18 @@ jobs:
           KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
           PROPS_EOF
 
-      - name: 🚀 安装 Gradle ${{ env.GRADLE_VERSION }} + 缓存
+      - name: 🚀 Gradle 缓存加速
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: ${{ startsWith(github.ref, 'refs/tags/') == false && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
       - name: 🔨 构建 Release APK
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: 📦 构建 Release AAB
-        run: gradle bundleRelease --no-daemon --stacktrace
+        run: ./gradlew bundleRelease --no-daemon --stacktrace
 
       - name: 🔍 定位产物
         id: find-artifacts
