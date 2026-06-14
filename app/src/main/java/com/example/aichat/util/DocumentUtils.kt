@@ -19,7 +19,7 @@ import java.io.InputStream
  *   · extractText(context, maxChars) →  文档文本（前 maxChars 字符）
  *
  *  支持的内容类型：
- *    · text/*   —— 直接 InputStream → reader.readText()
+ *    · text/any   —— 直接 InputStream → reader.readText()
  *    · application/json  application/xml  application/javascript
  *    · application/pdf  —— PdfRenderer，前 3 页文本
  *  其他返回 null。
