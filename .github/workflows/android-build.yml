@@ -70,12 +70,17 @@ jobs:
       - name: 🔍 定位产物
         id: find-artifact
         run: |
+          echo "=== 工作目录 ==="
+          pwd
+          echo "=== 项目结构 ==="
+          ls -la
           echo "=== 搜索 APK ==="
-          find app/build/outputs -name "*.apk" -type f 2>/dev/null || true
+          find . -name "*.apk" -type f 2>/dev/null || true
+          echo "=== build/outputs 目录 ==="
+          ls -lR app/build/outputs/ 2>/dev/null || echo "app/build/outputs/ 不存在"
           APK=$(find app/build/outputs/apk/debug -name "*.apk" -type f 2>/dev/null | head -1)
           if [ -z "$APK" ]; then
             echo "❌ 未找到 Debug APK"
-            ls -lR app/build/outputs/ 2>/dev/null || echo "outputs 目录不存在"
             exit 1
           fi
           echo "apk-path=$APK" >> $GITHUB_OUTPUT
