@@ -13,7 +13,6 @@ import com.example.aichat.data.remote.dto.buildTextContent
 import com.example.aichat.data.remote.sse.EventSourceParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn

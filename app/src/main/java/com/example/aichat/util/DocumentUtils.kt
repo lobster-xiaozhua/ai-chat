@@ -105,8 +105,8 @@ suspend fun Uri.extractText(context: Context, maxChars: Int = 12000): String? =
             mime == "application/javascript"
 
         when {
-            isText -> runCatching { readAsText(context, maxChars) }.getOrNull()
-            mime == "application/pdf" -> runCatching { readPdfAsText(context, maxChars) }.getOrNull()
+            isText -> runCatching { readAsText(context, this@extractText, maxChars) }.getOrNull()
+            mime == "application/pdf" -> runCatching { readPdfAsText(context, this@extractText, maxChars) }.getOrNull()
             else -> null
         }
     }
