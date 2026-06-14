@@ -10,6 +10,7 @@ import com.example.aichat.data.repository.SettingsRepository
 import com.example.aichat.util.extractText
 import com.example.aichat.util.toDocumentEntry
 import com.example.aichat.util.toDataUriList
+import com.example.aichat.util.getFileName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job

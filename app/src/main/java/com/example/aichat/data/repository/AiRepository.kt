@@ -13,6 +13,7 @@ import com.example.aichat.data.remote.dto.buildTextContent
 import com.example.aichat.data.remote.sse.EventSourceParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
@@ -21,6 +22,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.ResponseBody
 import retrofit2.Call
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,7 +33,7 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
     class Unauthorized(msg: String = "未授权：请检查 API Key 是否正确") : ApiException(msg)
     class RateLimited(msg: String = "请求过于频繁，请稍后再试") : ApiException(msg)
     class ServerError(code: Int, msg: String = "服务器错误 ($code)") : ApiException(msg)
-    class InvalidRequest(msg: String = "请求无效：$msg") : ApiException(msg)
+    class InvalidRequest(private val detail: String = "") : ApiException("请求无效${if (detail.isNotBlank()) "：$detail" else ""}")
     class Network(cause: Throwable?) : ApiException("网络异常，请检查连接", cause)
     class Unknown(cause: Throwable?) : ApiException("未知错误：${cause?.message}", cause)
 }
@@ -190,7 +192,7 @@ class AiRepository @Inject constructor(
     ): RoundResult = withContext(Dispatchers.IO) {
 
         val call = apiService.streamChatCompletion(url, auth, request)
-        val job = currentCoroutineContext()[Job]
+        val job = coroutineContext[Job]
         job?.invokeOnCompletion { if (call.isExecuted) runCatching { call.cancel() } }
 
         val response = try {
