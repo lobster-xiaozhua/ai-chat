@@ -16,7 +16,7 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "conversations",
-    indices = [Index(value = ["updatedAt"])]
+    indices = [Index(value = ["updatedAt"]), Index(value = ["isPinned"])]
 )
 data class Conversation(
     @PrimaryKey val id: String,
@@ -27,5 +27,7 @@ data class Conversation(
     /** 最近一条消息的文本摘要（最长 120 chars），会话列表页直接显示，避免 join 查询 */
     var lastMessage: String? = null,
     /** 会话内消息总数（由 MessageDao 触发的观察者维护），避免 COUNT(*) 全表扫描 */
-    var messageCount: Int = 0
+    var messageCount: Int = 0,
+    /** 是否置顶 */
+    var isPinned: Boolean = false
 )

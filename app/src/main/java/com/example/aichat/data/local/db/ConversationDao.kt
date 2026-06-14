@@ -12,10 +12,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ConversationDao {
 
-    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM conversations ORDER BY isPinned DESC, updatedAt DESC")
     fun getAllConversations(): Flow<List<Conversation>>
 
-    @Query("SELECT * FROM conversations WHERE title LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM conversations WHERE title LIKE '%' || :query || '%' ORDER BY isPinned DESC, updatedAt DESC")
     fun searchConversations(query: String): Flow<List<Conversation>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -29,4 +29,10 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations")
     suspend fun deleteAll()
+
+    @Query("UPDATE conversations SET isPinned = :pinned WHERE id = :id")
+    suspend fun updateIsPinned(id: String, pinned: Boolean)
+
+    @Query("SELECT COUNT(*) FROM conversations")
+    suspend fun getConversationCount(): Int
 }

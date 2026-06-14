@@ -1,7 +1,9 @@
 package com.example.aichat.ui.chat
 
 import android.net.Uri
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,11 +28,8 @@ import com.example.aichat.ui.theme.Primary
 
 /**
  * 消息气泡 —— 支持纯文本、流式文本、以及文本+图片（用户消息）。
- *
- * @param content 文本内容
- * @param isUser 是否为用户消息（决定对齐与配色）
- * @param imageUrls 图片附件列表（content:// 或 data:// URI 字符串）
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     content: String,
@@ -57,16 +56,19 @@ fun MessageBubble(
                 bottomStart = if (isUser) 20.dp else 6.dp,
                 bottomEnd = if (isUser) 6.dp else 20.dp
             ),
-            modifier = Modifier.fillMaxWidth(0.85f)
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongClick
+                )
         ) {
             Column(modifier = Modifier.padding(10.dp)) {
 
-                // —— 图片区域（仅用户消息有图片）
                 if (imageUrls.isNotEmpty()) {
                     ImageGrid(urls = imageUrls, isUser = isUser)
                 }
 
-                // —— 文本区域
                 if (content.isNotEmpty() || (imageUrls.isEmpty() && !isStreaming)) {
                     Box(modifier = Modifier.padding(top = if (imageUrls.isNotEmpty() && content.isNotEmpty()) 6.dp else 0.dp)) {
                         if (content.isEmpty()) {
@@ -83,12 +85,6 @@ fun MessageBubble(
     }
 }
 
-/**
- * 图片网格 —— 根据数量动态布局。
- *   · 1 张 → 整张横版 3:4 或 4:3
- *   · 2 张 → 左右各一张，1:1
- *   · 3+ 张 → 2xN 网格（每行 2 张，最后一张居中）
- */
 @Composable
 private fun ImageGrid(urls: List<String>, isUser: Boolean) {
     when (urls.size) {
@@ -110,10 +106,6 @@ private fun ImageGrid(urls: List<String>, isUser: Boolean) {
     }
 }
 
-/**
- * 单张图片 —— 通过 Coil 从 content:// URI / http URL / data URI 加载。
- * 使用固定高度 + 内容缩放，避免大图占用过多屏幕。
- */
 @Composable
 private fun SingleImage(url: String, modifier: Modifier = Modifier) {
     val imageUri = try {

@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.aichat.ui.chat.ChatScreen
 import com.example.aichat.ui.chat.ModelPickerScreen
+import com.example.aichat.ui.settings.AboutScreen
 import com.example.aichat.ui.settings.AccountScreen
 import com.example.aichat.ui.settings.CustomModelScreen
 import com.example.aichat.ui.settings.SettingsScreen
@@ -30,7 +31,8 @@ fun AppNavGraph(modifier: Modifier = Modifier) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateToCustomModel = { navController.navigate(Routes.CustomModel.route) { launchSingleTop = true } },
-                onNavigateToModelPicker = { navController.navigate(Routes.ModelPicker.route) { launchSingleTop = true } }
+                onNavigateToModelPicker = { navController.navigate(Routes.ModelPicker.route) { launchSingleTop = true } },
+                onNavigateToAbout = { navController.navigate(Routes.About.route) { launchSingleTop = true } }
             )
         }
         composable(Routes.CustomModel.route) {
@@ -44,6 +46,9 @@ fun AppNavGraph(modifier: Modifier = Modifier) {
         }
         composable(Routes.ModelPicker.route) {
             ModelPickerScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.About.route) {
+            AboutScreen(onBack = { navController.popBackStack() })
         }
     }
 }

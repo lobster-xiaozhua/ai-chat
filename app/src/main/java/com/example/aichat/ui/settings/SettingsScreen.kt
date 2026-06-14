@@ -1,5 +1,7 @@
 package com.example.aichat.ui.settings
 
+import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -50,13 +53,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.aichat.ui.theme.Primary
 import kotlinx.coroutines.delay
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit = {},
     onNavigateToCustomModel: () -> Unit = {},
-    onNavigateToModelPicker: () -> Unit = {}
+    onNavigateToModelPicker: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {}
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val theme by viewModel.theme.collectAsState()
@@ -66,6 +71,7 @@ fun SettingsScreen(
     val temperature by viewModel.temperature.collectAsState()
     val systemPrompt by viewModel.systemPrompt.collectAsState()
     val currentApiKey by viewModel.apiKey.collectAsState()
+    val context = LocalContext.current
 
     var tempValue by remember(temperature) { mutableStateOf(temperature.toFloatOrNull() ?: 1.0f) }
     var darkMode by remember(theme) { mutableStateOf(theme == "dark") }
@@ -73,14 +79,26 @@ fun SettingsScreen(
     var apiKey by remember(currentApiKey) { mutableStateOf(currentApiKey) }
     var showApiKey by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showCacheDialog by remember { mutableStateOf(false) }
+    var cacheSizeText by remember { mutableStateOf("") }
 
-    // API Key 防抖写入：避免每次按键都写 EncryptedSharedPreferences
+    // 数据统计
+    var convCount by remember { mutableStateOf(0) }
+    var msgCount by remember { mutableStateOf(0) }
+    var storageSize by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        convCount = viewModel.getConversationCount()
+        msgCount = viewModel.getMessageCount()
+        storageSize = calculateStorageSize(context)
+    }
+
+    // API Key 防抖写入
     LaunchedEffect(apiKey) {
         delay(500)
         viewModel.setApiKey(apiKey)
     }
 
-    // 系统提示词防抖写入
     var pendingSystemPrompt by remember(systemPrompt) { mutableStateOf(systemPrompt) }
     LaunchedEffect(pendingSystemPrompt) {
         delay(500)
@@ -178,7 +196,6 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // API 提供商选择
                     DropdownSelector(
                         label = "API 提供商",
                         value = when {
@@ -204,7 +221,6 @@ fun SettingsScreen(
                         }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    // 默认模型
                     DropdownSelector(
                         label = "默认模型",
                         value = defaultModel,
@@ -231,7 +247,6 @@ fun SettingsScreen(
                         onSelect = { viewModel.setDefaultModel(it) }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    // API Key 输入框（防抖写入，不在 onValueChange 中直接保存）
                     OutlinedTextField(
                         value = apiKey,
                         onValueChange = { newKey ->
@@ -317,19 +332,80 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
-            // 隐私分组
-            SectionTitle("隐私")
+            // 数据统计分组
+            SectionTitle("数据统计")
             Surface(
-                onClick = { showClearConfirm = true },
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "清除所有对话（不可恢复）",
-                        color = Color(0xFFD32F2F)
-                    )
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("会话总数", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Text("$convCount", fontSize = 14.sp, color = Primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("消息总数", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Text("$msgCount", fontSize = 14.sp, color = Primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("存储占用", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Text(storageSize, fontSize = 14.sp, color = Primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                    }
+                }
+            }
+
+            // 隐私分组
+            SectionTitle("隐私")
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    Surface(
+                        onClick = {
+                            cacheSizeText = calculateStorageSize(context)
+                            showCacheDialog = true
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.Transparent,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("清理缓存", modifier = Modifier.weight(1f))
+                            Text(cacheSizeText.ifBlank { calculateStorageSize(context) }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Surface(
+                        onClick = { showClearConfirm = true },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.Transparent,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp)) {
+                            Text("清除所有对话（不可恢复）", color = Color(0xFFD32F2F))
+                        }
+                    }
+                }
+            }
+
+            // 关于
+            SectionTitle("其他")
+            Surface(
+                onClick = onNavigateToAbout,
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("关于", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                    Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -354,6 +430,31 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // 清理缓存对话框
+    if (showCacheDialog) {
+        AlertDialog(
+            onDismissRequest = { showCacheDialog = false },
+            title = { Text("清理缓存") },
+            text = { Text("当前缓存大小：$cacheSizeText\n\n确认清理缓存？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        clearCache(context)
+                        cacheSizeText = calculateStorageSize(context)
+                        storageSize = cacheSizeText
+                        showCacheDialog = false
+                    },
+                    colors = androidx.compose.material3.TextButtonDefaults.colors(
+                        contentColor = Color(0xFFD32F2F)
+                    )
+                ) { Text("清理") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCacheDialog = false }) { Text("取消") }
             }
         )
     }
@@ -411,5 +512,46 @@ private fun DropdownSelector(
                 )
             }
         }
+    }
+}
+
+private fun calculateStorageSize(context: Context): String {
+    var totalSize = 0L
+    // cacheDir
+    totalSize += getDirSize(context.cacheDir)
+    // databases
+    val dbDir = context.getDatabasePath("aichat_db").parentFile
+    if (dbDir != null && dbDir.exists()) totalSize += getDirSize(dbDir)
+    return formatSize(totalSize)
+}
+
+private fun getDirSize(dir: File): Long {
+    if (!dir.exists()) return 0L
+    var size = 0L
+    val files = dir.listFiles() ?: return 0L
+    for (file in files) {
+        size += if (file.isDirectory) getDirSize(file) else file.length()
+    }
+    return size
+}
+
+private fun formatSize(size: Long): String {
+    return when {
+        size < 1024 -> "$size B"
+        size < 1024 * 1024 -> "${size / 1024} KB"
+        size < 1024 * 1024 * 1024 -> "${"%.1f".format(size.toDouble() / (1024 * 1024))} MB"
+        else -> "${"%.1f".format(size.toDouble() / (1024 * 1024 * 1024))} GB"
+    }
+}
+
+private fun clearCache(context: Context) {
+    try {
+        context.cacheDir.deleteRecursively()
+        // 清理相机临时文件
+        val tempDir = File(context.cacheDir, "camera")
+        if (tempDir.exists()) tempDir.deleteRecursively()
+        Log.d("SettingsScreen", "Cache cleared successfully")
+    } catch (e: Exception) {
+        Log.w("SettingsScreen", "Failed to clear cache: ${e.message}")
     }
 }

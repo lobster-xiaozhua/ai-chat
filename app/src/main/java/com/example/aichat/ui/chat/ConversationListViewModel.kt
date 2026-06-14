@@ -1,5 +1,6 @@
 package com.example.aichat.ui.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.data.model.Conversation
@@ -18,6 +19,10 @@ import javax.inject.Inject
 class ConversationListViewModel @Inject constructor(
     private val chatRepository: ChatRepository
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "ConvListVM"
+    }
 
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations: StateFlow<List<Conversation>> = _conversations.asStateFlow()
@@ -47,6 +52,7 @@ class ConversationListViewModel @Inject constructor(
                 updatedAt = now
             )
         )
+        Log.d(TAG, "Created new conversation: $id")
         return id
     }
 
@@ -54,6 +60,7 @@ class ConversationListViewModel @Inject constructor(
         viewModelScope.launch {
             val conv = _conversations.value.firstOrNull { it.id == id } ?: return@launch
             chatRepository.updateConversation(conv.copy(title = newTitle, updatedAt = System.currentTimeMillis()))
+            Log.d(TAG, "Renamed conversation $id to '$newTitle'")
         }
     }
 
@@ -61,6 +68,14 @@ class ConversationListViewModel @Inject constructor(
         viewModelScope.launch {
             val conv = _conversations.value.firstOrNull { it.id == id } ?: return@launch
             chatRepository.deleteConversation(conv)
+            Log.d(TAG, "Deleted conversation $id")
+        }
+    }
+
+    fun togglePin(id: String, currentlyPinned: Boolean) {
+        viewModelScope.launch {
+            chatRepository.updateIsPinned(id, !currentlyPinned)
+            Log.d(TAG, "Toggled pin for $id: pinned=${!currentlyPinned}")
         }
     }
 
@@ -79,8 +94,12 @@ class ConversationListViewModel @Inject constructor(
         }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            // 使用 first() 避免无限 collect 挂起
             _conversations.value = chatRepository.searchConversations(query).first()
         }
+    }
+
+    suspend fun exportConversationAsMarkdown(id: String): String {
+        Log.d(TAG, "Exporting conversation $id as Markdown")
+        return chatRepository.exportConversationAsMarkdown(id)
     }
 }

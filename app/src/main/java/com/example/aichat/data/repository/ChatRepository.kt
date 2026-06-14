@@ -1,5 +1,6 @@
 package com.example.aichat.data.repository
 
+import android.util.Log
 import com.example.aichat.data.local.db.AppDatabase
 import com.example.aichat.data.local.db.ConversationDao
 import com.example.aichat.data.local.db.MessageDao
@@ -15,6 +16,9 @@ class ChatRepository @Inject constructor(
     private val messageDao: MessageDao,
     private val db: AppDatabase
 ) {
+    companion object {
+        private const val TAG = "ChatRepository"
+    }
 
     fun getConversations(): Flow<List<Conversation>> = conversationDao.getAllConversations()
 
@@ -53,6 +57,51 @@ class ChatRepository @Inject constructor(
 
     suspend fun deleteMessage(message: Message) {
         messageDao.delete(message)
+    }
+
+    suspend fun deleteMessageById(id: Long) {
+        Log.d(TAG, "Deleting message id=$id")
+        messageDao.deleteById(id)
+    }
+
+    suspend fun updateIsPinned(id: String, pinned: Boolean) {
+        Log.d(TAG, "Updating isPinned for conv=$id to $pinned")
+        conversationDao.updateIsPinned(id, pinned)
+    }
+
+    suspend fun getConversationCount(): Int = conversationDao.getConversationCount()
+
+    suspend fun getMessageCount(): Int = messageDao.getMessageCount()
+
+    /**
+     * 导出会话为 Markdown 格式
+     */
+    suspend fun exportConversationAsMarkdown(conversationId: String): String {
+        val conv = try {
+            conversationDao.getAllConversations().first().firstOrNull { it.id == conversationId }
+        } catch (_: Exception) {
+            null
+        } ?: run {
+            Log.w(TAG, "Conversation $conversationId not found for export")
+            return ""
+        }
+        val messages = messageDao.getMessagesAsList(conversationId)
+        val sb = StringBuilder()
+        sb.appendLine("# ${conv.title}")
+        sb.appendLine()
+        sb.appendLine("> 导出时间：${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(conv.updatedAt))}")
+        sb.appendLine()
+        for (msg in messages) {
+            val label = if (msg.role == "user") "🧑 用户" else "🤖 助手"
+            sb.appendLine("### $label")
+            sb.appendLine()
+            sb.appendLine(msg.content)
+            sb.appendLine()
+            sb.appendLine("---")
+            sb.appendLine()
+        }
+        Log.d(TAG, "Exported conversation ${conv.id} as Markdown (${sb.length} chars)")
+        return sb.toString()
     }
 
     suspend fun sendMessageAndUpdateConversation(

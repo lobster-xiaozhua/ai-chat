@@ -25,9 +25,15 @@ interface MessageDao {
     @Delete
     suspend fun delete(message: Message)
 
+    @Query("DELETE FROM messages WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
     @Query("DELETE FROM messages WHERE conversationId = :conversationId")
     suspend fun deleteByConversation(conversationId: String)
 
     @Query("DELETE FROM messages")
     suspend fun deleteByAll()
+
+    @Query("SELECT COUNT(*) FROM messages")
+    suspend fun getMessageCount(): Int
 }

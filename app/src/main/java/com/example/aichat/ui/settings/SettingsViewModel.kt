@@ -1,5 +1,6 @@
 package com.example.aichat.ui.settings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.data.repository.ChatRepository
@@ -16,6 +17,10 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val chatRepository: ChatRepository
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "SettingsVM"
+    }
 
     private val _theme = MutableStateFlow("light")
     val theme: StateFlow<String> = _theme.asStateFlow()
@@ -41,7 +46,6 @@ class SettingsViewModel @Inject constructor(
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
-    // 用户从提供商模型列表里勾选的模型 id 集合（有序）
     private val _selectedModelIds = MutableStateFlow(emptyList<String>())
     val selectedModelIds: StateFlow<List<String>> = _selectedModelIds.asStateFlow()
 
@@ -55,7 +59,6 @@ class SettingsViewModel @Inject constructor(
             launch { settingsRepository.getSystemPrompt().collect { _systemPrompt.value = it } }
             launch { settingsRepository.getBaseUrl().collect { _baseUrl.value = it } }
             launch { settingsRepository.getSelectedModelIds().collect { _selectedModelIds.value = it } }
-            // 异步读取 API Key，避免 EncryptedSharedPreferences 首次初始化阻塞主线程
             launch { _apiKey.value = settingsRepository.getApiKey() }
         }
     }
@@ -69,10 +72,22 @@ class SettingsViewModel @Inject constructor(
     fun setBaseUrl(value: String) = viewModelScope.launch { settingsRepository.setBaseUrl(value) }
     fun setApiKey(value: String) = viewModelScope.launch { settingsRepository.setApiKey(value) }
     fun setSelectedModelIds(ids: List<String>) = viewModelScope.launch { settingsRepository.setSelectedModelIds(ids) }
-    // 为非挂起调用提供同步快照（ModelsRepository / UI 需要时）
     fun getApiKeyNow(): String = settingsRepository.getApiKey()
 
     fun clearAllConversations() = viewModelScope.launch {
         chatRepository.deleteAllConversations()
+        Log.d(TAG, "All conversations cleared")
+    }
+
+    suspend fun getConversationCount(): Int {
+        val count = chatRepository.getConversationCount()
+        Log.d(TAG, "Conversation count: $count")
+        return count
+    }
+
+    suspend fun getMessageCount(): Int {
+        val count = chatRepository.getMessageCount()
+        Log.d(TAG, "Message count: $count")
+        return count
     }
 }
