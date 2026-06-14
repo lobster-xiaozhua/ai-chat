@@ -388,35 +388,11 @@ private fun ChatInputBar(
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
 
-                // —— 顶部一行：左 (Think / Search) + 右 (模型 / + / 语音)
+                // —— 顶部：文本输入 + 发送按钮（视觉焦点，第一排）
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
                 ) {
-                    // —— 左侧：Think / Search
-                    ModeChip(label = "Think", isOn = thinkMode, onClick = onToggleThink, icon = "✓")
-                    ModeChip(label = "Search", isOn = searchMode, onClick = onToggleSearch, icon = "🌐")
-
-                    // —— 填充空白（把右侧挤到最右端）
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    // —— 右侧：模型 / + / 语音
-                    ModeChip(label = friendlyModelName(currentModel), isOn = false, onClick = onModelClick, icon = "", isModelChip = true)
-                    Surface(
-                        onClick = onOpenPlusSheet,
-                        shape = CircleShape,
-                        color = if (jsonMode || pendingImageUrls.isNotEmpty()) Primary else MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.size(30.dp)
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("+", color = if (jsonMode || pendingImageUrls.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                // —— 底部：文本输入 + 发送按钮
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
                     androidx.compose.foundation.text.BasicTextField(
                         value = inputText,
                         onValueChange = onInputChange,
@@ -450,6 +426,30 @@ private fun ChatInputBar(
                             } else {
                                 Text("→", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
+                        }
+                    }
+                }
+
+                // —— 底部一行：左 (Think / Search) + 右 (模型 / +)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ModeChip(label = "Think", isOn = thinkMode, onClick = onToggleThink, icon = "✓")
+                    ModeChip(label = "Search", isOn = searchMode, onClick = onToggleSearch, icon = "🌐")
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    ModeChip(label = friendlyModelName(currentModel), isOn = false, onClick = onModelClick, icon = "", isModelChip = true)
+                    Surface(
+                        onClick = onOpenPlusSheet,
+                        shape = CircleShape,
+                        color = if (jsonMode || pendingImageUrls.isNotEmpty()) Primary else MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("+", color = if (jsonMode || pendingImageUrls.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
