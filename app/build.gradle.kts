@@ -30,19 +30,19 @@ android {
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 
-    // release 签名配置：优先从环境变量 / 本地 keystore 读取，未配置时回退到 debug keystore
-    //    · AICHAT_KEYSTORE_FILE   （路径，默认 $HOME/.android/debug.keystore）
-    //    · AICHAT_KEYSTORE_PASS   （默认 "android"）
-    //    · AICHAT_KEY_ALIAS       （默认 "androiddebugkey"）
-    //    · AICHAT_KEY_PASS        （默认 "android"）
-    // 这样既可在 CI 注入正式签名，也可在本地直接 assembleRelease 不报错
+    // release 签名配置：优先从 gradle.properties（或 CI 通过 -P 注入）读取，
+    // 未配置时回退到 debug keystore，方便本地直接 assembleRelease 不报错。
+    //    · KEYSTORE_FILE      （相对路径或绝对路径）
+    //    · KEYSTORE_PASSWORD  （密钥库密码）
+    //    · KEY_ALIAS          （密钥别名）
+    //    · KEY_PASSWORD       （密钥密码）
     signingConfigs {
         create("release") {
             val defaultStore = "${System.getenv("HOME")}/.android/debug.keystore"
-            val storeFileProp = System.getenv("AICHAT_KEYSTORE_FILE")?.takeIf { it.isNotBlank() } ?: defaultStore
-            val storePassProp = System.getenv("AICHAT_KEYSTORE_PASS")?.takeIf { it.isNotBlank() } ?: "android"
-            val keyAliasProp = System.getenv("AICHAT_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
-            val keyPassProp = System.getenv("AICHAT_KEY_PASS")?.takeIf { it.isNotBlank() } ?: "android"
+            val storeFileProp = (project.properties["KEYSTORE_FILE"] as? String)?.takeIf { it.isNotBlank() } ?: defaultStore
+            val storePassProp = (project.properties["KEYSTORE_PASSWORD"] as? String)?.takeIf { it.isNotBlank() } ?: "android"
+            val keyAliasProp = (project.properties["KEY_ALIAS"] as? String)?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
+            val keyPassProp = (project.properties["KEY_PASSWORD"] as? String)?.takeIf { it.isNotBlank() } ?: "android"
             this.storeFile = java.io.File(storeFileProp)
             this.storePassword = storePassProp
             this.keyAlias = keyAliasProp
@@ -73,6 +73,11 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    // Kotlin 2.0 使用 kotlin Compiler Gradle 插件管理 Compose 编译器版本，
+    // 此处仍保留 composeOptions 作为 AGP 8.x 兼容性声明，确保 CI 构建稳定。
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.15"
     }
     packaging {
         resources {
