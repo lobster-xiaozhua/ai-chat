@@ -25,11 +25,13 @@ class AiChatApp : Application() {
     }
 
     private val versionName: String
-        get() = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "1.0"
-
-    private val versionCode: Int
         get() = runCatching {
-            @Suppress("DEPRECATION")
-            packageManager.getPackageInfo(packageName, 0).versionCode
-        }.getOrNull() ?: 1
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull() ?: "1.0"
+
+    private val versionCode: Long
+        get() = runCatching {
+            // minSdk=29 ≥ API 28(P)，longVersionCode 始终可用
+            packageManager.getPackageInfo(packageName, 0).longVersionCode
+        }.getOrNull() ?: 1L
 }

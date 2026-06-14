@@ -1,6 +1,7 @@
 package com.example.aichat.di
 
 import com.example.aichat.data.remote.EmbeddingsApiService
+import com.example.aichat.data.remote.ModelsApiService
 import com.example.aichat.data.remote.OpenAiApiService
 import dagger.Module
 import dagger.Provides
@@ -62,5 +63,11 @@ class NetworkModule {
     @Singleton
     fun provideEmbeddingsApiService(retrofit: Retrofit): EmbeddingsApiService {
         return retrofit.create(EmbeddingsApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideModelsApiService(retrofit: Retrofit): ModelsApiService {
+        return retrofit.create(ModelsApiService::class.java)
     }
 }
