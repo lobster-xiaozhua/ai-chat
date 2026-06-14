@@ -355,14 +355,21 @@ class ChatViewModel @Inject constructor(
     /** 删除指定消息 */
     fun deleteMessage(messageId: Long) {
         val msg = _messages.value.firstOrNull { it.id == messageId } ?: run {
-            Log.w(TAG, "deleteMessage: message $messageId not found in current list")
+            Log.w(TAG, "deleteMessage: message $messageId not found")
             return
         }
+        // 先计算 historyForApi 中的索引（在移除前）
+        val historyIdx = _messages.value
+            .filter { it.role == "user" || it.role == "assistant" }
+            .indexOfFirst { it.id == messageId }
+
         _messages.value = _messages.value.filter { it.id != messageId }
-        // 从 historyForApi 中移除对应条目
-        historyForApi = java.util.Collections.synchronizedList(
-            historyForApi.filter { !(it.first == msg.role && it.second == msg.content) }.toMutableList()
-        )
+
+        if (historyIdx >= 0 && historyIdx < historyForApi.size) {
+            historyForApi = java.util.Collections.synchronizedList(
+                historyForApi.toMutableList().also { it.removeAt(historyIdx) }
+            )
+        }
         viewModelScope.launch {
             runCatching { chatRepository.deleteMessageById(messageId) }
                 .onFailure { Log.w(TAG, "Failed to delete message $messageId: ${it.message}") }

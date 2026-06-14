@@ -130,13 +130,9 @@ fun ChatScreen(
         if (activeConversationId == null) {
             val newId = conversationListViewModel.createNewConversation()
             chatViewModel.setConversation(newId)
-        }
-    }
-
-    // 切换会话时恢复草稿
-    LaunchedEffect(activeConversationId) {
-        activeConversationId?.let { id ->
-            val draft = chatViewModel.restoreDraft(id)
+        } else {
+            // 切换会话时恢复草稿
+            val draft = chatViewModel.restoreDraft(activeConversationId)
             if (draft.isNotBlank()) inputText = draft
         }
     }
@@ -256,7 +252,13 @@ fun ChatScreen(
                 showMsgMenu = true
             },
             onRegenerate = { chatViewModel.regenerateLastAssistant() },
-            snackbarHostState = snackbarHostState
+            onSendExample = { text -> onInputChange(text); chatViewModel.sendMessage(text.trim()) },
+            snackbarHostState = snackbarHostState,
+            plusExpanded = showPlusSheet,
+            onTogglePlus = { showPlusSheet = !showPlusSheet },
+            onPickPhoto = { imagePicker.pickImages(maxItems = 9); showPlusSheet = false },
+            onPickFromCamera = { imagePicker.pickFromCamera(); showPlusSheet = false },
+            onPickDocument = { documentPicker.pickDocuments(); showPlusSheet = false }
         )
     }
 
@@ -381,10 +383,14 @@ private fun MainChatContent(
     onRemoveDocument: (String) -> Unit,
     onMessageLongClick: (Message) -> Unit,
     onRegenerate: () -> Unit,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
+    onSendExample: (String) -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    plusExpanded: Boolean,
+    onTogglePlus: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onPickFromCamera: () -> Unit,
+    onPickDocument: () -> Unit
 ) {
-    val chatViewModel: ChatViewModel = hiltViewModel()
-
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
@@ -415,11 +421,11 @@ private fun MainChatContent(
                 onSend = onSend,
                 onStop = onStop,
                 onModelClick = onModelClick,
-                plusExpanded = showPlusSheet,
-                onTogglePlus = { showPlusSheet = !showPlusSheet },
-                onPickPhoto = { imagePicker.pickImages(maxItems = 9); showPlusSheet = false },
-                onPickFromCamera = { imagePicker.pickFromCamera(); showPlusSheet = false },
-                onPickDocument = { documentPicker.pickDocuments(); showPlusSheet = false },
+                plusExpanded = plusExpanded,
+                onTogglePlus = onTogglePlus,
+                onPickPhoto = onPickPhoto,
+                onPickFromCamera = onPickFromCamera,
+                onPickDocument = onPickDocument,
                 modifier = Modifier.navigationBarsPadding().imePadding()
             )
         },
@@ -427,7 +433,7 @@ private fun MainChatContent(
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty() && pendingDocumentUrls.isEmpty()) {
-                EmptyState(onSend = { text -> onInputChange(text); chatViewModel.sendMessage(text.trim()) })
+                EmptyState(onSend = { text -> onSendExample(text) })
             } else {
                 LaunchedEffect(messages.size) {
                     if (messages.isNotEmpty()) {
@@ -611,7 +617,7 @@ private fun ChatInputBar(
                         ) {
                             AsyncImage(
                                 model = Uri.parse(url),
-                                contentDescription = null,
+                                contentDescription = "图片附件",
                                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)),
                                 contentScale = ContentScale.Crop
                             )
@@ -796,62 +802,62 @@ private fun ConversationDrawer(
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
-            items(conversations, key = { it.id }) { conv ->
-                val isActive = conv.id == activeConversationId
-                val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
-                Surface(
-                    onClick = { onSelect(conv.id) },
-                    onLongClick = { menuConvId = conv.id },
-                    color = bgColor,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                items(conversations, key = { it.id }) { conv ->
+                    val isActive = conv.id == activeConversationId
+                    val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
+                    Surface(
+                        onClick = { onSelect(conv.id) },
+                        onLongClick = { menuConvId = conv.id },
+                        color = bgColor,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        if (conv.isPinned) {
-                            Icon(
-                                Icons.Default.PushPin,
-                                contentDescription = "已置顶",
-                                tint = Primary,
-                                modifier = Modifier.size(14.dp).padding(end = 2.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(conv.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                            Text(formatTime(conv.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (conv.isPinned) {
+                                Icon(
+                                    Icons.Default.PushPin,
+                                    contentDescription = "已置顶",
+                                    tint = Primary,
+                                    modifier = Modifier.size(14.dp).padding(end = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(conv.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                                Text(formatTime(conv.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+                            }
                         }
                     }
-                }
-                // 长按弹出菜单：重命名 / 删除 / 置顶 / 导出
-                DropdownMenu(
-                    expanded = menuConvId == conv.id,
-                    onDismissRequest = { menuConvId = null }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(if (conv.isPinned) "取消置顶" else "置顶") },
-                        onClick = { menuConvId = null; onTogglePin(conv.id, conv.isPinned) },
-                        leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("重命名") },
-                        onClick = { menuConvId = null; showRenameDialog = conv.id },
-                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("导出") },
-                        onClick = { menuConvId = null; onExport(conv.id) },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("删除", color = Color(0xFFD32F2F)) },
-                        onClick = { menuConvId = null; showDeleteConfirmId = conv.id },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp)) }
-                    )
+                    // 长按弹出菜单：重命名 / 删除 / 置顶 / 导出
+                    DropdownMenu(
+                        expanded = menuConvId == conv.id,
+                        onDismissRequest = { menuConvId = null }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (conv.isPinned) "取消置顶" else "置顶") },
+                            onClick = { menuConvId = null; onTogglePin(conv.id, conv.isPinned) },
+                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("重命名") },
+                            onClick = { menuConvId = null; showRenameDialog = conv.id },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("导出") },
+                            onClick = { menuConvId = null; onExport(conv.id) },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("删除", color = Color(0xFFD32F2F)) },
+                            onClick = { menuConvId = null; showDeleteConfirmId = conv.id },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp)) }
+                        )
+                    }
                 }
             }
-        }
         }
 
         // 重命名对话框
