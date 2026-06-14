@@ -45,28 +45,14 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settingsRepository.getTheme().collect { _theme.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getLanguage().collect { _language.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getFontSize().collect { _fontSize.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getDefaultModel().collect { _defaultModel.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getTemperature().collect { _temperature.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getSystemPrompt().collect { _systemPrompt.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getBaseUrl().collect { _baseUrl.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getSelectedModelIds().collect { _selectedModelIds.value = it }
+            launch { settingsRepository.getTheme().collect { _theme.value = it } }
+            launch { settingsRepository.getLanguage().collect { _language.value = it } }
+            launch { settingsRepository.getFontSize().collect { _fontSize.value = it } }
+            launch { settingsRepository.getDefaultModel().collect { _defaultModel.value = it } }
+            launch { settingsRepository.getTemperature().collect { _temperature.value = it } }
+            launch { settingsRepository.getSystemPrompt().collect { _systemPrompt.value = it } }
+            launch { settingsRepository.getBaseUrl().collect { _baseUrl.value = it } }
+            launch { settingsRepository.getSelectedModelIds().collect { _selectedModelIds.value = it } }
         }
         _apiKey.value = settingsRepository.getApiKey()
     }

@@ -95,11 +95,21 @@ fun ChatScreen(
         chatViewModel.addDocumentUrls(urisWithNames)
     }
 
-    var inputText by remember { mutableStateOf("") }
+    var inputText by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     var drawerOpen by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
     var showPlusSheet by remember { mutableStateOf(false) }
-    var activeConversationId by remember { mutableStateOf<String?>(null) }
+
+    // 从 ViewModel 读取当前活跃会话 ID；首次进入为空时创建一个新对话
+    val activeConversationId by chatViewModel.currentConversationId.collectAsState()
+
+    // 确保首次进入时有一个对话（只执行一次）
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (chatViewModel.currentConversationId.value == null) {
+            val newId = conversationListViewModel.createNewConversation()
+            chatViewModel.setConversation(newId)
+        }
+    }
 
     // 快速切换模型
     val quickModels = selectedModelIds.value.ifEmpty { listOf(currentModel) }
@@ -125,11 +135,6 @@ fun ChatScreen(
         if (streamingText != null) {
             coroutineScope.launch { listState.scrollToItem(messages.size) }
         }
-    }
-
-    if (activeConversationId == null) {
-        activeConversationId = conversationListViewModel.createNewConversation()
-        chatViewModel.setConversation(activeConversationId!!)
     }
 
     if (drawerOpen) {
@@ -168,21 +173,20 @@ fun ChatScreen(
                     conversations = conversations,
                     activeConversationId = activeConversationId,
                     onSelect = { id ->
-                        activeConversationId = id
                         chatViewModel.setConversation(id)
                         drawerOpen = false
                     },
                     onNewChat = {
-                        activeConversationId = conversationListViewModel.createNewConversation()
-                        chatViewModel.setConversation(activeConversationId!!)
+                        val newId = conversationListViewModel.createNewConversation()
+                        chatViewModel.setConversation(newId)
                         drawerOpen = false
                     },
                     onRename = { id, title -> conversationListViewModel.renameConversation(id, title) },
                     onDelete = { id ->
                         conversationListViewModel.deleteConversation(id)
                         if (activeConversationId == id) {
-                            activeConversationId = conversationListViewModel.createNewConversation()
-                            chatViewModel.setConversation(activeConversationId!!)
+                            val newId = conversationListViewModel.createNewConversation()
+                            chatViewModel.setConversation(newId)
                         }
                     },
                     onNavigateToAccount = { drawerOpen = false; onNavigateToAccount() },

@@ -73,25 +73,18 @@ class ChatViewModel @Inject constructor(
     private val _systemPrompt = MutableStateFlow("")
 
     private var generationJob: Job? = null
-    private var currentConversationId: String = ""
+    private val _currentConversationId = MutableStateFlow<String?>(null)
+    val currentConversationId: StateFlow<String?> = _currentConversationId.asStateFlow()
     private var historyForApi = mutableListOf<Pair<String, String>>()
 
     /* ---------- 初始化：从 DataStore 异步加载设置 ---------- */
     init {
         viewModelScope.launch {
-            settingsRepository.getBaseUrl().collect { if (it.isNotBlank()) _baseUrl.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getTemperature().collect { if (it.isNotBlank()) _temperatureStr.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getSystemPrompt().collect { _systemPrompt.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getDefaultModel().collect { if (it.isNotBlank() && !_isGenerating.value) _currentModel.value = it }
-        }
-        viewModelScope.launch {
-            settingsRepository.getSelectedModelIds().collect { _selectedModelIds.value = it }
+            launch { settingsRepository.getBaseUrl().collect { if (it.isNotBlank()) _baseUrl.value = it } }
+            launch { settingsRepository.getTemperature().collect { if (it.isNotBlank()) _temperatureStr.value = it } }
+            launch { settingsRepository.getSystemPrompt().collect { _systemPrompt.value = it } }
+            launch { settingsRepository.getDefaultModel().collect { if (it.isNotBlank() && !_isGenerating.value) _currentModel.value = it } }
+            launch { settingsRepository.getSelectedModelIds().collect { _selectedModelIds.value = it } }
         }
     }
 
@@ -163,8 +156,8 @@ class ChatViewModel @Inject constructor(
     /* ---------- 对外操作：会话与消息 ---------- */
 
     fun setConversation(conversationId: String) {
-        if (currentConversationId == conversationId && _messages.value.isNotEmpty()) return
-        currentConversationId = conversationId
+        if (_currentConversationId.value == conversationId && _messages.value.isNotEmpty()) return
+        _currentConversationId.value = conversationId
         generationJob?.cancel()
         _isGenerating.value = false
         _streamingAssistant.value = null
@@ -194,6 +187,7 @@ class ChatViewModel @Inject constructor(
         val images = _pendingImageUrls.value
         val documents = _pendingDocumentUrls.value
         val docNames = _pendingDocumentNames.value
+        val convId = _currentConversationId.value ?: return
         if (text.isBlank() && images.isEmpty() && documents.isEmpty()) return
         _pendingImageUrls.value = emptyList()
         _pendingDocumentUrls.value = emptyList()
@@ -204,7 +198,7 @@ class ChatViewModel @Inject constructor(
         // 为避免阻塞 UI：若有文档，先占位，协程中更新；否则立即发送。
         val initialTextForHistory = text
         val userMsg = Message(
-            conversationId = currentConversationId,
+            conversationId = convId,
             role = "user",
             content = initialTextForHistory,
             imageUrls = Message.encodeImageUrls(images),
@@ -289,7 +283,7 @@ class ChatViewModel @Inject constructor(
                 if (finalContent.isNotEmpty()) {
                     _streamingAssistant.value = finalContent
                     val finalMsg = Message(
-                        conversationId = currentConversationId,
+                        conversationId = convId,
                         role = "assistant",
                         content = finalContent,
                         timestamp = System.currentTimeMillis()
@@ -306,7 +300,7 @@ class ChatViewModel @Inject constructor(
                 if (partial.isNotEmpty()) {
                     _streamingAssistant.value = partial
                     val finalMsg = Message(
-                        conversationId = currentConversationId,
+                        conversationId = convId,
                         role = "assistant",
                         content = partial,
                         timestamp = System.currentTimeMillis()

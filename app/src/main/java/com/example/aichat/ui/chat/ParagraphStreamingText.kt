@@ -108,12 +108,11 @@ fun ParagraphStreamingText(
  */
 @Composable
 private fun rememberParagraphBoundaries(text: String): IntArray {
-    // 注意：这里没有用 remember(text) —— 因为 text 每 token 都变，
-    // remember 的 key 每次都 miss，不会缓存。
-    // 但这个函数本身就是 O(n) 字符串扫描，比 Paragraph.layout() 快 100 倍以上，
-    // 所以直接每次计算也没问题。
-    val result = computeBoundariesImpl(text)
-    return result
+    // 即使 text 每个 token 都变，remember(text) 仍然有价值：
+    // 父 Composable 可能因其他状态（如 pendingImageUrls、isGenerating）触发
+    // 整屏重组，此时 text 没变但本函数会被再次调用。
+    // remember 让 Compose 编译器在 key 不变时跳过 lambda 内部。
+    return androidx.compose.runtime.remember(text) { computeBoundariesImpl(text) }
 }
 
 private fun computeBoundariesImpl(text: String): IntArray {
