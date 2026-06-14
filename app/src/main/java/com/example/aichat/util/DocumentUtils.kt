@@ -155,16 +155,17 @@ private fun readPdfAsText(context: Context, uri: Uri, maxChars: Int): String? {
     }
 
     // 2) 退而求其次：用 PdfRenderer 获取页数 + 估算每页可处理文本
-    val pfd: ParcelFileDescriptor =
-        context.contentResolver.openFileDescriptor(uri, "r") ?: return null
+    var pfd: ParcelFileDescriptor? = null
     val sb = StringBuilder()
     sb.appendLine("[PDF 文档预览]")
     sb.appendLine("文件名：${uri.getFileName(context)}")
-    var pageCount = 0
-    runCatching {
+    try {
+        pfd = context.contentResolver.openFileDescriptor(uri, "r")
+        if (pfd == null) return null
+        var pageCount = 0
         PdfRenderer(pfd).use { renderer ->
             pageCount = renderer.pageCount
-            val take = (pageCount).coerceAtMost(3)
+            val take = pageCount.coerceAtMost(3)
             sb.appendLine("总页数：$pageCount；已分析前 $take 页")
             for (i in 0 until take) {
                 renderer.openPage(i).use { page ->
@@ -176,6 +177,9 @@ private fun readPdfAsText(context: Context, uri: Uri, maxChars: Int): String? {
                 }
             }
         }
+    } finally {
+        // pfd 即便在 PdfRenderer.use 内部抛出异常，这里也要保证关闭
+        runCatching { pfd?.close() }
     }
     return sb.toString()
 }

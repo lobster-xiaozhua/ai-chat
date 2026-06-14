@@ -43,8 +43,17 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
 @Singleton
 class ToolRegistry @Inject constructor() {
 
-    private val tools = mutableMapOf<String, FunctionEntry>()
+    /**
+     * ConcurrentHashMap：支持注册阶段（主线程）与执行阶段（网络协程）并发读写；
+     * · put/remove 仅允许注册阶段调用，执行阶段只读
+     * · 注册完成后，在任何协程中读 list/get/execute 都是线程安全的
+     */
+    private val tools = ConcurrentHashMap<String, FunctionEntry>()
 
+    /**
+     * 注册工具。只允许在 Application.onCreate 或单例初始化阶段调用。
+     * 注册顺序不保证，同名后注册会覆盖先注册。
+     */
     fun register(entry: FunctionEntry) {
         tools[entry.def.name] = entry
     }
@@ -53,7 +62,11 @@ class ToolRegistry @Inject constructor() {
 
     fun list(): List<Tool> = tools.values.map { Tool(function = it.def) }
 
-    /** 执行工具调用；未注册返回占位 JSON */
+    /**
+     * 执行工具调用；未注册返回占位 JSON。
+     * · 在 Dispatchers.Default 上执行，避免阻塞网络协程。
+     * · handler 可能抛异常，这里兜底包装为 JSON 错误响应。
+     */
     suspend fun execute(call: ToolCall): String = withContext(Dispatchers.Default) {
         val entry = tools[call.function.name]
             ?: return@withContext """{"status":"tool_not_registered","name":"${call.function.name}"}"""

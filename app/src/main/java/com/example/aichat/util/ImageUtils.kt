@@ -179,9 +179,26 @@ suspend fun List<String>.toDataUriList(context: Context, maxKb: Int = 1024): Lis
  *   · authority："${context.packageName}.fileprovider"（与 AndroidManifest.xml 中 provider
  *     的 android:authorities 字段保持一致；引用由构建工具替换 applicationId）
  *   · 权限：调用方必须通过 Intent.addFlags(FLAG_GRANT_WRITE_URI_PERMISSION) 授权给相机
+ *
+ * 返回的 File 对象建议保存在 ViewModel 中，发送成功后由 clearCameraTempFiles 回收。
  */
-fun createImageFileUri(context: Context): Uri {
+fun createImageFileUri(context: Context): Pair<Uri, File> {
     val dir = File(context.cacheDir, "camera").apply { if (!exists()) mkdirs() }
     val file = File(dir, "IMG_${System.currentTimeMillis()}.jpg")
-    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    return uri to file
+}
+
+/**
+ * 清空 cacheDir/camera 下所有临时拍照文件。
+ *   · 应用启动时调用一次 — 兜底清除上次没清理的文件
+ *   · 拍照成功并入库后调用一次 — 回收刚才的临时文件
+ * 操作发生在 IO 线程，不会阻塞主线程。
+ */
+suspend fun clearCameraTempFiles(context: Context) = withContext(Dispatchers.IO) {
+    val dir = File(context.cacheDir, "camera")
+    if (!dir.exists() || !dir.isDirectory) return@withContext
+    runCatching {
+        dir.listFiles()?.forEach { it.delete() }
+    }
 }

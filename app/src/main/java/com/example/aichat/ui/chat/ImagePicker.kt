@@ -60,13 +60,12 @@ fun rememberImagePicker(onPicked: (List<String>) -> Unit): ImagePickerLauncher {
     )
 
     // —— 拍照：TakePicture，返回 Boolean 表示是否成功；成功后使用预先创建的 URI
-    val cameraOutput = remember { mutableMapOf<String, Uri>() }
+    val cameraOutput = remember { mutableMapOf<String, Pair<Uri, java.io.File>>() }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        // 找到最后一个加入的 URI 作为拍照结果
         val last = cameraOutput.keys.lastOrNull() ?: return@rememberLauncherForActivityResult
-        val uri = cameraOutput.remove(last) ?: return@rememberLauncherForActivityResult
+        val (uri, _) = cameraOutput.remove(last) ?: return@rememberLauncherForActivityResult
         if (success) {
             // 拍照成功：授予后续读取权限（重启 app 也可读）
             tryGrantPersistableRead(context, uri)
@@ -103,12 +102,12 @@ fun rememberImagePicker(onPicked: (List<String>) -> Unit): ImagePickerLauncher {
             // 在 cacheDir/camera/ 下创建新文件，包成 FileProvider URI，
             // 写入 launch map 以便 onResult 时取回。
             try {
-                val outputUri = createImageFileUri(context)
+                val outputPair = createImageFileUri(context)
                 val key = "shot_${System.currentTimeMillis()}"
-                cameraOutput[key] = outputUri
+                cameraOutput[key] = outputPair
                 // TakePicture 需要 FLAG_GRANT_WRITE_URI_PERMISSION 授权给相机应用
                 // （这里 contract 内部会处理；若失败，走异常回退用 GetContent 选图）
-                cameraLauncher.launch(outputUri)
+                cameraLauncher.launch(outputPair.first)
             } catch (e: Exception) {
                 // 若设备上无可用相机应用，降级为从相册选单张
                 try { singlePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }

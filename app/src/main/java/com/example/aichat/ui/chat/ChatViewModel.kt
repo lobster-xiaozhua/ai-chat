@@ -55,14 +55,15 @@ class ChatViewModel @Inject constructor(
     val searchMode: StateFlow<Boolean> = _searchMode.asStateFlow()
 
     // 待发送图片附件（content:// URI 字符串列表）
-    private val _pendingImageUrls = MutableStateFlow<List<String>>(emptyList())
-    val pendingImageUrls: StateFlow<List<String>> = _pendingImageUrls.asStateFlow()
+    // 使用 SnapshotStateList：Compose 中每个 Chip 的增删不会导致其他 Chip 重组
+    private val _pendingImageUrls = androidx.compose.runtime.mutableStateListOf<String>()
+    val pendingImageUrls: androidx.compose.runtime.snapshots.SnapshotStateList<String> = _pendingImageUrls
 
     // 待发送文档（uri 字符串列表 + uri→文件名映射）
-    private val _pendingDocumentUrls = MutableStateFlow<List<String>>(emptyList())
-    val pendingDocumentUrls: StateFlow<List<String>> = _pendingDocumentUrls.asStateFlow()
-    private val _pendingDocumentNames = MutableStateFlow<Map<String, String>>(emptyMap())
-    val pendingDocumentNames: StateFlow<Map<String, String>> = _pendingDocumentNames.asStateFlow()
+    private val _pendingDocumentUrls = androidx.compose.runtime.mutableStateListOf<String>()
+    val pendingDocumentUrls: androidx.compose.runtime.snapshots.SnapshotStateList<String> = _pendingDocumentUrls
+    private val _pendingDocumentNames = androidx.compose.runtime.mutableStateMapOf<String, String>()
+    val pendingDocumentNames: androidx.compose.runtime.snapshots.SnapshotStateMap<String, String> = _pendingDocumentNames
 
     // 用户已选模型列表（用于快速切换）
     private val _selectedModelIds = MutableStateFlow(emptyList<String>())
@@ -100,19 +101,19 @@ class ChatViewModel @Inject constructor(
 
     /** 添加一组图片 URI（来自 Photo Picker）*/
     fun addImageUrls(urls: List<String>) {
-        val current = _pendingImageUrls.value
-        val combined = current + urls.filterNot { it in current }
-        _pendingImageUrls.value = combined
+        for (url in urls) {
+            if (url !in _pendingImageUrls) _pendingImageUrls.add(url)
+        }
     }
 
     /** 从待发送列表移除一张图片 */
     fun removeImageUrl(url: String) {
-        _pendingImageUrls.value = _pendingImageUrls.value - url
+        _pendingImageUrls.remove(url)
     }
 
     /** 清空待发送图片列表 */
     fun clearPendingImages() {
-        _pendingImageUrls.value = emptyList()
+        _pendingImageUrls.clear()
     }
 
     /* ---------- 对外操作：文档附件 ---------- */
@@ -122,35 +123,24 @@ class ChatViewModel @Inject constructor(
      * 入参是 (uri 字符串 → 显示用文件名) 的列表。
      */
     fun addDocumentUrls(urisWithNames: List<Pair<String, String>>) {
-        if (urisWithNames.isEmpty()) return
-        val currentUrls = _pendingDocumentUrls.value
-        val currentNames = _pendingDocumentNames.value.toMutableMap()
-        val added = mutableListOf<String>()
         for ((uri, name) in urisWithNames) {
-            if (uri !in currentUrls && uri !in added) {
-                added.add(uri)
-                currentNames[uri] = name.ifEmpty { "未命名文档" }
+            if (uri !in _pendingDocumentUrls) {
+                _pendingDocumentUrls.add(uri)
+                _pendingDocumentNames[uri] = name.ifEmpty { "未命名文档" }
             }
-        }
-        if (added.isNotEmpty()) {
-            _pendingDocumentUrls.value = currentUrls + added
-            _pendingDocumentNames.value = currentNames
         }
     }
 
     /** 从待发送列表移除一个文档 */
     fun removeDocumentUrl(uri: String) {
-        val currentUrls = _pendingDocumentUrls.value - uri
-        val currentNames = _pendingDocumentNames.value.toMutableMap()
-        currentNames.remove(uri)
-        _pendingDocumentUrls.value = currentUrls
-        _pendingDocumentNames.value = currentNames
+        _pendingDocumentUrls.remove(uri)
+        _pendingDocumentNames.remove(uri)
     }
 
     /** 清空待发送文档列表 */
     fun clearDocuments() {
-        _pendingDocumentUrls.value = emptyList()
-        _pendingDocumentNames.value = emptyMap()
+        _pendingDocumentUrls.clear()
+        _pendingDocumentNames.clear()
     }
 
     /* ---------- 对外操作：会话与消息 ---------- */
@@ -183,15 +173,15 @@ class ChatViewModel @Inject constructor(
      *   · 完成后 assistant 消息写回持久层
      */
     fun sendMessage(text: String) {
-        // snapshot 当前图片 + 文档列表，发送后清空
-        val images = _pendingImageUrls.value
-        val documents = _pendingDocumentUrls.value
-        val docNames = _pendingDocumentNames.value
+        // snapshot 当前图片 + 文档列表，发送后清空（注意 SnapshotStateList 没有 .value）
+        val images = _pendingImageUrls.toList()
+        val documents = _pendingDocumentUrls.toList()
+        val docNames = _pendingDocumentNames.toMap()
         val convId = _currentConversationId.value ?: return
         if (text.isBlank() && images.isEmpty() && documents.isEmpty()) return
-        _pendingImageUrls.value = emptyList()
-        _pendingDocumentUrls.value = emptyList()
-        _pendingDocumentNames.value = emptyMap()
+        _pendingImageUrls.clear()
+        _pendingDocumentUrls.clear()
+        _pendingDocumentNames.clear()
 
         val now = System.currentTimeMillis()
         // 先创建 userMsg（持久层的消息 content 最终在文档提取完成后确定）

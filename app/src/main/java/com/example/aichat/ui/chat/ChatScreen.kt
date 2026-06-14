@@ -80,9 +80,11 @@ fun ChatScreen(
     val conversations by conversationListViewModel.conversations.collectAsState()
 
     // 待发送图片 / 文档（从选择器获取的 content:// URI 字符串列表）
-    val pendingImageUrls by chatViewModel.pendingImageUrls.collectAsState()
-    val pendingDocumentUrls by chatViewModel.pendingDocumentUrls.collectAsState()
-    val pendingDocumentNames by chatViewModel.pendingDocumentNames.collectAsState()
+    // 直接使用 ViewModel 中的 SnapshotStateList/SnapshotStateMap。
+    // 这些是 @Stable 容器：增/删不会导致已存在的 item 被重组。
+    val pendingImageUrls = chatViewModel.pendingImageUrls
+    val pendingDocumentUrls = chatViewModel.pendingDocumentUrls
+    val pendingDocumentNames = chatViewModel.pendingDocumentNames
 
     // —— 图片选择器（Android 官方 Photo Picker）—— 在此处注册，供 Photo 按钮调用
     val imagePicker = rememberImagePicker(onPicked = { newUris ->

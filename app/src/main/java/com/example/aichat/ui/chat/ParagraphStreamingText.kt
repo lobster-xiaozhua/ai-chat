@@ -203,11 +203,14 @@ private fun computeBoundariesImpl(text: String): IntArray {
  */
 @Composable
 private fun FrozenParagraph(text: String, color: Color, modifier: Modifier = Modifier) {
-    val style = LocalTextStyle.current.copy(
-        color = color,
-        fontSize = 15.sp,
-        lineHeight = 22.sp
-    )
+    // 用 remember(color) 缓存 style 对象；用户切换主题时才重建。
+    val style = androidx.compose.runtime.remember(color) {
+        LocalTextStyle.current.copy(
+            color = color,
+            fontSize = 15.sp,
+            lineHeight = 22.sp
+        )
+    }
     androidx.compose.foundation.text.BasicText(
         text = text,
         style = style,
@@ -225,11 +228,13 @@ private fun FrozenParagraph(text: String, color: Color, modifier: Modifier = Mod
  */
 @Composable
 private fun ActiveParagraph(text: String, color: Color, modifier: Modifier = Modifier) {
-    val style = LocalTextStyle.current.copy(
-        color = color,
-        fontSize = 15.sp,
-        lineHeight = 22.sp
-    )
+    val style = androidx.compose.runtime.remember(color) {
+        LocalTextStyle.current.copy(
+            color = color,
+            fontSize = 15.sp,
+            lineHeight = 22.sp
+        )
+    }
     androidx.compose.foundation.text.BasicText(
         text = text,
         style = style,

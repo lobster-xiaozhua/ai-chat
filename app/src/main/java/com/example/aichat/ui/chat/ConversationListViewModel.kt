@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.aichat.data.model.Conversation
 import com.example.aichat.data.repository.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,11 +21,10 @@ class ConversationListViewModel @Inject constructor(
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations: StateFlow<List<Conversation>> = _conversations.asStateFlow()
 
-    init {
-        loadConversations()
-    }
+    // 搜索模式下 collect 的 job，切回全量列表前 cancel，避免覆盖全量数据
+    private var searchJob: Job? = null
 
-    private fun loadConversations() {
+    init {
         viewModelScope.launch {
             chatRepository.getConversations().collect { list ->
                 _conversations.value = list
@@ -63,8 +63,18 @@ class ConversationListViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 搜索会话列表；空 query 时退回到全量列表。
+     * 使用独立 job 管理搜索协程，确保切回全量列表时不会被搜索结果覆盖。
+     */
     fun searchConversations(query: String) {
-        viewModelScope.launch {
+        if (query.isBlank()) {
+            searchJob?.cancel()
+            searchJob = null
+            return
+        }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             chatRepository.searchConversations(query).collect {
                 _conversations.value = it
             }
