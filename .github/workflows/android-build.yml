@@ -49,11 +49,24 @@ jobs:
           echo "=== ANDROID_HOME ===" && echo $ANDROID_HOME && ls $ANDROID_HOME 2>/dev/null || true
 
       - name: 🔨 构建 Debug APK
+        id: build-debug
         run: |
-          set -o pipefail
           gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build-debug.log
-          echo "=== BUILD LOG (last 50 lines) ===" >> $GITHUB_STEP_SUMMARY
-          tail -50 build-debug.log >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+      - name: 📋 输出构建日志
+        if: always()
+        run: |
+          echo "=== BUILD LOG (last 80 lines) ===" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -80 build-debug.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: ❌ 检查构建结果
+        if: steps.build-debug.outcome != 'success'
+        run: |
+          echo "Debug build failed! Check the build log above."
+          exit 1
 
       - name: 🔍 定位产物
         id: find-artifact
