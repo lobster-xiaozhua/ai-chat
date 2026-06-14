@@ -8,18 +8,17 @@ plugins {
 
 android {
     namespace = "com.example.aichat"
-    // compileSdk ≥ 36：安卓 16 正式 API 级别，确保能使用最新系统 API 与资源
-    // （MagicOS 10.0+ 会在 targetSdk < 33 时将 app 标记为"兼容模式"，
-    // 导致后台查杀升级、状态栏显示异常）
-    compileSdk = 36
+    // compileSdk = 35：安卓 15 — AGP 8.5.4 官方最高支持
+    // （Android 16 / API 36 需要 AGP 8.7+；本项目用 35 已可覆盖 MagicOS 10.0+）
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.aichat"
         // minSdk = 29：安卓 10，覆盖荣耀 90GT（出厂 MagicOS 7.2 / Android 13）
         // 以及所有可升级到 Android 10+ 的荣耀/华为机型
         minSdk = 29
-        // targetSdk = 36：安卓 16 — MagicOS 10.0+ 强要求
-        targetSdk = 36
+        // targetSdk = 35：安卓 15 — MagicOS 10.0+ 强要求 targetSdk ≥ 33，否则会进"兼容模式"
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
