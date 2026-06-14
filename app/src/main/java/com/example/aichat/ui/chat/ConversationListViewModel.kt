@@ -79,9 +79,8 @@ class ConversationListViewModel @Inject constructor(
         }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            chatRepository.searchConversations(query).collect {
-                _conversations.value = it
-            }
+            // 使用 first() 避免无限 collect 挂起
+            _conversations.value = chatRepository.searchConversations(query).first()
         }
     }
 }

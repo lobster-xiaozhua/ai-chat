@@ -29,7 +29,4 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations")
     suspend fun deleteAll()
-
-    @Query("DELETE FROM messages")
-    suspend fun deleteAllMessages()
 }

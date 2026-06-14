@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.aichat.data.repository.GroupedModels
 import com.example.aichat.data.repository.ModelsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -133,14 +135,19 @@ fun ModelPickerScreen(onBack: () -> Unit = {}) {
     val loading by vm.loading.collectAsState()
 
     var keyword by remember { mutableStateOf("") }
+    // 防抖搜索词：避免每次按键都重新过滤大列表
+    var debouncedKw by remember { mutableStateOf("") }
+    LaunchedEffect(keyword) {
+        delay(300)
+        debouncedKw = keyword.trim().lowercase()
+    }
 
     // 过滤：搜索关键字（小写）在模型 id 或 provider 中出现
-    val kw = keyword.trim().lowercase()
-    val filtered = remember(groups, kw) {
-        if (kw.isBlank()) groups
+    val filtered = remember(groups, debouncedKw) {
+        if (debouncedKw.isBlank()) groups
         else groups.mapNotNull { group ->
             val models = group.models.filter {
-                it.id.lowercase().contains(kw) || group.provider.lowercase().contains(kw)
+                it.id.lowercase().contains(debouncedKw) || group.provider.lowercase().contains(debouncedKw)
             }
             if (models.isEmpty()) null else GroupedModels(group.provider, models)
         }

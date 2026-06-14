@@ -34,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.aichat.ui.theme.Primary
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,9 +69,23 @@ fun SettingsScreen(
 
     var tempValue by remember(temperature) { mutableStateOf(temperature.toFloatOrNull() ?: 1.0f) }
     var darkMode by remember(theme) { mutableStateOf(theme == "dark") }
+    var systemMode by remember(theme) { mutableStateOf(theme != "dark" && theme != "light") }
     var apiKey by remember(currentApiKey) { mutableStateOf(currentApiKey) }
     var showApiKey by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+
+    // API Key 防抖写入：避免每次按键都写 EncryptedSharedPreferences
+    LaunchedEffect(apiKey) {
+        delay(500)
+        viewModel.setApiKey(apiKey)
+    }
+
+    // 系统提示词防抖写入
+    var pendingSystemPrompt by remember(systemPrompt) { mutableStateOf(systemPrompt) }
+    LaunchedEffect(pendingSystemPrompt) {
+        delay(500)
+        viewModel.setSystemPrompt(pendingSystemPrompt)
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -111,7 +127,24 @@ fun SettingsScreen(
                             checked = darkMode,
                             onCheckedChange = {
                                 darkMode = it
+                                systemMode = false
                                 viewModel.setTheme(if (it) "dark" else "light")
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("跟随系统", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = systemMode,
+                            onCheckedChange = {
+                                systemMode = it
+                                if (it) {
+                                    darkMode = false
+                                    viewModel.setTheme("system")
+                                } else {
+                                    viewModel.setTheme("light")
+                                }
                             }
                         )
                     }
@@ -198,12 +231,11 @@ fun SettingsScreen(
                         onSelect = { viewModel.setDefaultModel(it) }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    // API Key 输入框
+                    // API Key 输入框（防抖写入，不在 onValueChange 中直接保存）
                     OutlinedTextField(
                         value = apiKey,
                         onValueChange = { newKey ->
                             apiKey = newKey
-                            viewModel.setApiKey(newKey)
                         },
                         label = { Text("API Key") },
                         modifier = Modifier.fillMaxWidth(),
@@ -276,8 +308,8 @@ fun SettingsScreen(
             // 系统提示词分组
             SectionTitle("系统提示词")
             OutlinedTextField(
-                value = systemPrompt,
-                onValueChange = { viewModel.setSystemPrompt(it) },
+                value = pendingSystemPrompt,
+                onValueChange = { pendingSystemPrompt = it },
                 placeholder = { Text("定义 AI 的角色和行为...", fontSize = 13.sp) },
                 modifier = Modifier
                     .fillMaxWidth()

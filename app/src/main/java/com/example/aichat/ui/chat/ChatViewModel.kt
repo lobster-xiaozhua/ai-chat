@@ -247,7 +247,7 @@ class ChatViewModel @Inject constructor(
                     if (lastIdx >= 0) {
                         val newHistory = historyForApi.toMutableList()
                         newHistory[lastIdx] = "user" to combinedUserText
-                        historyForApi = newHistory
+                        historyForApi = java.util.Collections.synchronizedList(newHistory)
                     }
                 }
 

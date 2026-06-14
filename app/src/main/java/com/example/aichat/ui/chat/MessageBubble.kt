@@ -125,13 +125,13 @@ private fun SingleImage(url: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFE8E8E8))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .aspectRatio(1.0f)
     ) {
         if (imageUri != null) {
             AsyncImage(
                 model = imageUri,
-                contentDescription = null,
+                contentDescription = "图片附件",
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
             )

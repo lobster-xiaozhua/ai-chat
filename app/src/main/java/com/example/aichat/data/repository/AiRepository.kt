@@ -316,6 +316,10 @@ class AiRepository @Inject constructor(
 
     /* ---------- 内部：URL 规范化 ---------- */
 
-    private fun buildChatCompletionsUrl(baseUrl: String): String =
-        baseUrl.trim().trimEnd('/') + "/chat/completions"
+    private fun buildChatCompletionsUrl(baseUrl: String): String {
+        val trimmed = baseUrl.trim().trimEnd('/')
+        // 避免重复拼接：如果 URL 已包含 /chat/completions 则直接返回
+        if (trimmed.endsWith("/chat/completions")) return trimmed
+        return if (trimmed.endsWith("/v1")) "$trimmed/chat/completions" else "$trimmed/v1/chat/completions"
+    }
 }

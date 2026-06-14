@@ -68,7 +68,11 @@ data class Message(
                 prefix = "[",
                 postfix = "]",
                 separator = ","
-            ) { "\"$it\"" }
+            ) { url ->
+                // 转义 URL 中可能存在的特殊字符（双引号、反斜杠）
+                val escaped = url.replace("\\", "\\\\").replace("\"", "\\\"")
+                "\"$escaped\""
+            }
         }
     }
 }

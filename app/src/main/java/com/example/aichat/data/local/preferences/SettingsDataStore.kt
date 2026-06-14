@@ -32,7 +32,7 @@ class SettingsDataStore @Inject constructor(
     }
 
     suspend fun setTheme(theme: String) { context.dataStore.edit { it[Keys.THEME] = theme } }
-    fun getTheme(): Flow<String> = context.dataStore.data.map { it[Keys.THEME] ?: "light" }
+    fun getTheme(): Flow<String> = context.dataStore.data.map { it[Keys.THEME] ?: "system" }
 
     suspend fun setLanguage(lang: String) { context.dataStore.edit { it[Keys.LANGUAGE] = lang } }
     fun getLanguage(): Flow<String> = context.dataStore.data.map { it[Keys.LANGUAGE] ?: "zh" }

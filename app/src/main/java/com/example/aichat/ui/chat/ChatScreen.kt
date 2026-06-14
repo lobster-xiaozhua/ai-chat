@@ -1,6 +1,7 @@
 package com.example.aichat.ui.chat
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -139,6 +140,11 @@ fun ChatScreen(
         }
     }
 
+    // Drawer 打开时按返回键先关闭 Drawer
+    BackHandler(enabled = drawerState.isOpen) {
+        coroutineScope.launch { drawerState.close() }
+    }
+
     // 修复抽屉：使用 ModalNavigationDrawer 替代条件分支，避免状态丢失
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -187,8 +193,14 @@ fun ChatScreen(
             },
             onStop = { chatViewModel.stopGeneration() },
             onMenuClick = { coroutineScope.launch { drawerState.open() } },
-            onModelClick = { showModelSelector = true },
-            onOpenPlusSheet = { showPlusSheet = true },
+            onModelClick = {
+                coroutineScope.launch { drawerState.close() }
+                showModelSelector = true
+            },
+            onOpenPlusSheet = {
+                coroutineScope.launch { drawerState.close() }
+                showPlusSheet = true
+            },
             thinkMode = chatViewModel.thinkMode.collectAsState().value,
             searchMode = chatViewModel.searchMode.collectAsState().value,
             jsonMode = chatViewModel.jsonMode.collectAsState().value,
@@ -333,7 +345,7 @@ private fun MainChatContent(
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             if (messages.isEmpty() && streamingText == null && pendingImageUrls.isEmpty() && pendingDocumentUrls.isEmpty()) {
-                EmptyState(onExampleClick = { example -> onInputChange(example) }, onSend = onSend)
+                EmptyState(onSend = { text -> onInputChange(text); chatViewModel.sendMessage(text.trim()) })
             } else {
                 LaunchedEffect(messages.size) {
                     if (messages.isNotEmpty()) {
@@ -602,17 +614,13 @@ private fun SheetAction(icon: String, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun EmptyState(onExampleClick: (String) -> Unit, onSend: () -> Unit) {
+private fun EmptyState(onSend: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("✨ AI 助手", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 24.dp))
         Text("输入消息开始对话，或试试这些示例：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 24.dp))
         val examples = listOf("帮我写一个 Kotlin 协程的例子", "用简单的方式解释 Transformer 架构", "写一首关于夏日的短诗")
         examples.forEach { example ->
-            Surface(onClick = {
-                onExampleClick(example)
-                // 延迟一帧发送，确保 inputText 状态已更新
-                onSend()
-            }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            Surface(onClick = { onSend(example) }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Text(example, modifier = Modifier.padding(16.dp), fontSize = 14.sp)
             }
         }
@@ -632,6 +640,7 @@ private fun ConversationDrawer(
 ) {
     var menuConvId by remember { mutableStateOf<String?>(null) }
     var showRenameDialog by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirmId by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -639,7 +648,12 @@ private fun ConversationDrawer(
             IconButton(onClick = onNewChat) { Icon(Icons.Default.Add, contentDescription = "新建对话", tint = Primary) }
         }
         Divider(color = MaterialTheme.colorScheme.outlineVariant)
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        if (conversations.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("暂无对话", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
             items(conversations, key = { it.id }) { conv ->
                 val isActive = conv.id == activeConversationId
                 val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
@@ -666,12 +680,13 @@ private fun ConversationDrawer(
                     )
                     DropdownMenuItem(
                         text = { Text("删除", color = Color(0xFFD32F2F)) },
-                        onClick = { menuConvId = null; onDelete(conv.id) },
+                        onClick = { menuConvId = null; showDeleteConfirmId = conv.id },
                         leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp)) }
                     )
                 }
             }
         }
+        } // end else (conversations not empty)
 
         // 重命名对话框
         showRenameDialog?.let { convId ->
@@ -700,6 +715,29 @@ private fun ConversationDrawer(
                     }
                 )
             }
+        }
+
+        // 删除确认对话框
+        showDeleteConfirmId?.let { convId ->
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmId = null },
+                title = { Text("删除对话") },
+                text = { Text("确定要删除这个对话吗？此操作不可恢复。") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onDelete(convId)
+                            showDeleteConfirmId = null
+                        },
+                        colors = androidx.compose.material3.TextButtonDefaults.colors(
+                            contentColor = Color(0xFFD32F2F)
+                        )
+                    ) { Text("删除") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmId = null }) { Text("取消") }
+                }
+            )
         }
 
         Divider(color = MaterialTheme.colorScheme.outlineVariant)

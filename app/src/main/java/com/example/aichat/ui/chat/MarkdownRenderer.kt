@@ -71,15 +71,9 @@ private fun rememberParsed(text: String, color: Color): AnnotatedString {
 
 private fun parseMarkdown(text: String, color: Color): AnnotatedString {
     return buildAnnotatedString {
-        val codeBlockPattern = Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL)
-        val inlineCodePattern = Regex("`([^`]+)`")
-        val boldPattern = Regex("\\*\\*(.*?)\\*\\*")
-        val italicPattern = Regex("\\*(.*?)\\*")
-        val linkPattern = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")
-
         var remaining = text
 
-        // 处理代码块（优先级最高）
+        // 处理代码块（优先级最高）—— 使用 indexOf 而非正则，避免 ReDoS 风险
         while (remaining.contains("```")) {
             val startIdx = remaining.indexOf("```")
             if (startIdx > 0) {

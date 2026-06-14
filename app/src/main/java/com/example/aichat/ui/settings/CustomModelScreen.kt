@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +55,7 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
     var baseUrl by remember { mutableStateOf(currentBaseUrl) }
     var modelName by remember { mutableStateOf(currentModel) }
     var apiKey by remember { mutableStateOf(currentKey) }
+    var showApiKey by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -118,7 +121,16 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                 label = { Text("API Key") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                visualTransformation = PasswordVisualTransformation()
+                visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { showApiKey = !showApiKey }) {
+                        Icon(
+                            if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (showApiKey) "隐藏" else "显示",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             )
 
             errorMsg?.let {
