@@ -8,16 +8,12 @@ plugins {
 
 android {
     namespace = "com.example.aichat"
-    // compileSdk = 35：安卓 15 — AGP 8.7.x 官方最高支持
-    // （覆盖 MagicOS 10.0+ / 荣耀 90GT 全机型；AGP 8.7 官方文档最高支持 API 35）
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.aichat"
-        // minSdk = 29：安卓 10，覆盖荣耀 90GT（出厂 MagicOS 7.2 / Android 13）
         minSdk = 29
-        // targetSdk = 35：安卓 15 — MagicOS 10.0+ 强要求 targetSdk ≥ 33
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -96,7 +92,7 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
+    val composeBom = platform("androidx.compose:compose-bom:2025.12.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -111,12 +107,12 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.navigation:navigation-compose:2.8.3")
+    implementation("androidx.navigation:navigation-compose:2.9.0")
 
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    implementation("androidx.room:room-paging:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.8.4")
+    implementation("androidx.room:room-ktx:2.8.4")
+    implementation("androidx.room:room-paging:2.8.4")
+    ksp("androidx.room:room-compiler:2.8.4")
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
@@ -135,8 +131,8 @@ dependencies {
 
     implementation("androidx.security:security-crypto:1.0.0")
 
-    // Coil —— Compose 图片加载库（用于 content:// URI / http URL / data URI）
-    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt.coil3:coil-compose:3.4.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.4.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

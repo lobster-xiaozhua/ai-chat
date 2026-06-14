@@ -67,7 +67,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.example.aichat.data.model.Conversation
 import com.example.aichat.data.model.Message
 import com.example.aichat.ui.theme.Primary
