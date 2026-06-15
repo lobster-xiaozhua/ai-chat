@@ -15,6 +15,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,7 +32,7 @@ import javax.inject.Singleton
 class UpdateRepository @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val json: Json,
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) {
     companion object {
         private const val TAG = "UpdateRepository"

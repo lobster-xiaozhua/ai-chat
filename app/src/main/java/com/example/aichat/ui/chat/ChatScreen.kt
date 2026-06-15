@@ -56,7 +56,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextButtonDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.DrawerValue
@@ -135,7 +135,7 @@ fun ChatScreen(
             chatViewModel.setConversation(newId)
         } else {
             // 切换会话时恢复草稿
-            val id = activeConversationId
+            val id = activeConversationId ?: return@LaunchedEffect
             val draft = chatViewModel.restoreDraft(id)
             if (draft.isNotBlank()) inputText = draft
         }
@@ -364,6 +364,7 @@ fun ChatScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainChatContent(
     messages: List<Message>,
@@ -911,7 +912,7 @@ private fun ConversationDrawer(
                             onDelete(convId)
                             showDeleteConfirmId = null
                         },
-                        colors = androidx.compose.material3.TextButtonDefaults.colors(
+                        colors = ButtonDefaults.textButtonColors(
                             contentColor = Color(0xFFD32F2F)
                         )
                     ) { Text("删除") }

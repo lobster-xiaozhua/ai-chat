@@ -34,7 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextButtonDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -425,7 +425,7 @@ fun SettingsScreen(
                         viewModel.clearAllConversations()
                         showClearConfirm = false
                     },
-                    colors = androidx.compose.material3.TextButtonDefaults.colors(
+                    colors = ButtonDefaults.textButtonColors(
                         contentColor = Color(0xFFD32F2F)
                     )
                 ) { Text("清除") }
@@ -450,7 +450,7 @@ fun SettingsScreen(
                         storageSize = cacheSizeText
                         showCacheDialog = false
                     },
-                    colors = androidx.compose.material3.TextButtonDefaults.colors(
+                    colors = ButtonDefaults.textButtonColors(
                         contentColor = Color(0xFFD32F2F)
                     )
                 ) { Text("清理") }

@@ -1,6 +1,7 @@
 package com.example.aichat.data.repository
 
 import android.util.Log
+import androidx.room.withTransaction
 import com.example.aichat.data.local.db.AppDatabase
 import com.example.aichat.data.local.db.ConversationDao
 import com.example.aichat.data.local.db.MessageDao

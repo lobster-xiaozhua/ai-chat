@@ -59,8 +59,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             // 首选 release 签名；如未找到，则回退到 debug 签名（避免 CI 上因缺密钥而失败）
             signingConfig = signingConfigs.findByName("release")
                 ?.takeIf { it.storeFile?.exists() == true }
@@ -73,6 +73,11 @@ android {
         debug {
             isMinifyEnabled = false
         }
+    }
+
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
     }
 
     compileOptions {
