@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.aichat.ui.theme.Primary
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -186,7 +189,7 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                     viewModel.setApiKey(apiKey.trim())
                     // 延迟一帧返回，确保 DataStore 写入完成
                     coroutineScope.launch {
-                        kotlinx.coroutines.delay(100)
+                        delay(100)
                         onBack()
                     }
                 },

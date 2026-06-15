@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +56,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.DrawerValue
@@ -132,7 +135,8 @@ fun ChatScreen(
             chatViewModel.setConversation(newId)
         } else {
             // 切换会话时恢复草稿
-            val draft = chatViewModel.restoreDraft(activeConversationId)
+            val id = activeConversationId
+            val draft = chatViewModel.restoreDraft(id)
             if (draft.isNotBlank()) inputText = draft
         }
     }
@@ -179,17 +183,21 @@ fun ChatScreen(
                 },
                 onNewChat = {
                     activeConversationId?.let { chatViewModel.saveDraft(it, inputText) }
-                    val newId = conversationListViewModel.createNewConversation()
-                    chatViewModel.setConversation(newId)
-                    inputText = chatViewModel.restoreDraft(newId)
+                    coroutineScope.launch {
+                        val newId = conversationListViewModel.createNewConversation()
+                        chatViewModel.setConversation(newId)
+                        inputText = chatViewModel.restoreDraft(newId)
+                    }
                     coroutineScope.launch { drawerState.close() }
                 },
                 onRename = { id, title -> conversationListViewModel.renameConversation(id, title) },
                 onDelete = { id ->
                     conversationListViewModel.deleteConversation(id)
                     if (activeConversationId == id) {
-                        val newId = conversationListViewModel.createNewConversation()
-                        chatViewModel.setConversation(newId)
+                        coroutineScope.launch {
+                            val newId = conversationListViewModel.createNewConversation()
+                            chatViewModel.setConversation(newId)
+                        }
                         inputText = ""
                     }
                 },
@@ -252,7 +260,7 @@ fun ChatScreen(
                 showMsgMenu = true
             },
             onRegenerate = { chatViewModel.regenerateLastAssistant() },
-            onSendExample = { text -> onInputChange(text); chatViewModel.sendMessage(text.trim()) },
+            onSendExample = { text -> inputText = text; chatViewModel.sendMessage(text.trim()) },
             snackbarHostState = snackbarHostState,
             plusExpanded = showPlusSheet,
             onTogglePlus = { showPlusSheet = !showPlusSheet },
@@ -756,6 +764,7 @@ private fun EmptyState(onSend: (String) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationDrawer(
     conversations: List<Conversation>,
@@ -806,10 +815,11 @@ private fun ConversationDrawer(
                     val isActive = conv.id == activeConversationId
                     val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
                     Surface(
-                        onClick = { onSelect(conv.id) },
-                        onLongClick = { menuConvId = conv.id },
                         color = bgColor,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().combinedClickable(
+                            onClick = { onSelect(conv.id) },
+                            onLongClick = { menuConvId = conv.id }
+                        )
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),

@@ -7,6 +7,7 @@ import com.example.aichat.data.local.db.MessageDao
 import com.example.aichat.data.model.Conversation
 import com.example.aichat.data.model.Message
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,7 +38,7 @@ class ChatRepository @Inject constructor(
         conversationDao.delete(conversation)
     }
 
-    suspend fun deleteAllConversations() = db.runInTransaction {
+    suspend fun deleteAllConversations() = db.withTransaction {
         messageDao.deleteByAll()
         conversationDao.deleteAll()
     }
@@ -77,7 +78,7 @@ class ChatRepository @Inject constructor(
      * 导出会话为 Markdown 格式
      */
     suspend fun exportConversationAsMarkdown(conversationId: String): String {
-        val conv = try {
+        val conv: Conversation = try {
             conversationDao.getAllConversations().first().firstOrNull { it.id == conversationId }
         } catch (_: Exception) {
             null
@@ -108,7 +109,7 @@ class ChatRepository @Inject constructor(
         conversation: Conversation,
         userMessage: String,
         assistantMessage: String
-    ) = db.runInTransaction {
+    ) = db.withTransaction {
         // 插入用户消息
         insertMessage(
             Message(
