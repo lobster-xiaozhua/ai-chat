@@ -4,11 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,21 +24,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,14 +39,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.DrawerValue
@@ -71,19 +58,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.compose.AsyncImage
-import com.example.aichat.data.model.Conversation
 import com.example.aichat.data.model.Message
 import com.example.aichat.ui.theme.Primary
 import kotlinx.coroutines.launch
@@ -310,8 +291,7 @@ fun ChatScreen(
         }
     }
 
-    // Plus 折叠面板（输入栏上方展开，非全屏遮罩）
-
+    // 模型选择器
     if (showModelSelector) {
         Surface(
             color = Color.Black.copy(alpha = 0.4f),
@@ -350,7 +330,7 @@ fun ChatScreen(
                             color = MaterialTheme.colorScheme.surface,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Primary, modifier = Modifier.padding(16.dp))
@@ -366,7 +346,7 @@ fun ChatScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainChatContent(
+internal fun MainChatContent(
     messages: List<Message>,
     streamingText: String?,
     isGenerating: Boolean,
@@ -490,466 +470,7 @@ private fun MainChatContent(
     }
 }
 
-@Composable
-private fun ChatInputBar(
-    inputText: String,
-    onInputChange: (String) -> Unit,
-    isGenerating: Boolean,
-    currentModel: String,
-    thinkMode: Boolean,
-    searchMode: Boolean,
-    jsonMode: Boolean,
-    onToggleThink: () -> Unit,
-    onToggleSearch: () -> Unit,
-    onToggleJsonMode: () -> Unit,
-    pendingImageUrls: List<String>,
-    onRemoveImage: (String) -> Unit,
-    pendingDocumentUrls: List<String>,
-    pendingDocumentNames: Map<String, String>,
-    onRemoveDocument: (String) -> Unit,
-    onSend: () -> Unit,
-    onStop: () -> Unit,
-    onModelClick: () -> Unit,
-    plusExpanded: Boolean,
-    onTogglePlus: () -> Unit,
-    onPickPhoto: () -> Unit,
-    onPickFromCamera: () -> Unit,
-    onPickDocument: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier) {
-        // —— 折叠面板：在输入栏上方展开 ——
-        if (plusExpanded) {
-            InlinePlusPanel(
-                onPickPhoto = onPickPhoto,
-                onPickFromCamera = onPickFromCamera,
-                onPickDocument = onPickDocument,
-                jsonMode = jsonMode,
-                onToggleJsonMode = onToggleJsonMode
-            )
-            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
-        }
-
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
-                ) {
-                    // "+" 按钮：输入框左侧，发送键旁边
-                    Surface(
-                        onClick = onTogglePlus,
-                        shape = CircleShape,
-                        color = if (plusExpanded) Primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.size(36.dp).semantics { contentDescription = "更多选项" }
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Text(
-                                if (plusExpanded) "✕" else "+",
-                                color = if (plusExpanded) Primary else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    androidx.compose.foundation.text.BasicTextField(
-                        value = inputText,
-                        onValueChange = onInputChange,
-                        modifier = Modifier.weight(1f).padding(end = 8.dp),
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 15.sp
-                        ),
-                        decorationBox = { innerTextField ->
-                            if (inputText.isEmpty()) {
-                                val tip = buildString {
-                                    if (pendingImageUrls.isNotEmpty()) append("描述这些图片…")
-                                    else if (pendingDocumentUrls.isNotEmpty()) append("描述这些文档…")
-                                    else if (thinkMode) append("深度思考中，请输入…")
-                                    else if (searchMode) append("联网搜索模式，请输入…")
-                                    else append("输入消息…")
-                                }
-                                Text(tip, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 14.sp)
-                            }
-                            innerTextField()
-                        }
-                    )
-                    Surface(
-                        onClick = if (isGenerating) onStop else onSend,
-                        shape = CircleShape,
-                        color = if (isGenerating) Color(0xFFD32F2F) else Primary,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            if (isGenerating) {
-                                Icon(Icons.Default.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(16.dp))
-                            } else {
-                                Text("→", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ModeChip(label = "Think", isOn = thinkMode, onClick = onToggleThink, icon = "✓")
-                    ModeChip(label = "Search", isOn = searchMode, onClick = onToggleSearch, icon = "🌐")
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    ModeChip(label = friendlyModelName(currentModel), isOn = false, onClick = onModelClick, icon = "", isModelChip = true)
-                }
-            }
-        }
-
-        if (pendingImageUrls.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                pendingImageUrls.take(6).forEach { url ->
-                    Box(modifier = Modifier.size(64.dp)) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.matchParentSize()
-                        ) {
-                            AsyncImage(
-                                model = Uri.parse(url),
-                                contentDescription = "图片附件",
-                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                        Surface(onClick = { onRemoveImage(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(18.dp).align(Alignment.TopEnd).semantics { contentDescription = "移除图片" }) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (pendingDocumentUrls.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                pendingDocumentUrls.forEach { url ->
-                    val name = pendingDocumentNames[url] ?: "文档"
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("📄", fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
-                            Text(text = name.take(20), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Surface(onClick = { onRemoveDocument(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(16.dp).padding(start = 4.dp).semantics { contentDescription = "移除文档" }) {
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("×", color = Color.White, fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ModeChip(
-    label: String,
-    isOn: Boolean,
-    onClick: () -> Unit,
-    icon: String = "",
-    isModelChip: Boolean = false
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = when {
-            isOn && !isModelChip -> Primary
-            isModelChip && !isOn -> MaterialTheme.colorScheme.surface
-            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-        }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (icon.isNotEmpty()) {
-                Text(icon, fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp), color = if (isOn) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(
-                label,
-                fontSize = 12.sp,
-                fontWeight = if (isOn || isModelChip) FontWeight.Medium else FontWeight.Normal,
-                color = if (isOn && !isModelChip) Color.White else MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-/** 输入栏上方的内联折叠面板 —— 替代全屏 PlusBottomSheet */
-@Composable
-private fun InlinePlusPanel(
-    onPickPhoto: () -> Unit,
-    onPickFromCamera: () -> Unit,
-    onPickDocument: () -> Unit,
-    jsonMode: Boolean,
-    onToggleJsonMode: () -> Unit
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                SheetAction(icon = "📷", label = "相机", onClick = onPickFromCamera)
-                SheetAction(icon = "🖼️", label = "相册", onClick = onPickPhoto)
-                SheetAction(icon = "📄", label = "文档", onClick = onPickDocument)
-            }
-            Divider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 4.dp))
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("{ } JSON 结构化输出", modifier = Modifier.weight(1f), fontSize = 14.sp)
-                androidx.compose.material3.Switch(checked = jsonMode, onCheckedChange = { onToggleJsonMode() })
-            }
-        }
-    }
-}
-
-@Composable
-private fun SheetAction(icon: String, label: String, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick, onClickLabel = label).padding(horizontal = 8.dp, vertical = 6.dp)
-    ) {
-        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.size(56.dp)) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Text(icon, fontSize = 24.sp)
-            }
-        }
-        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 6.dp))
-    }
-}
-
-@Composable
-private fun EmptyState(onSend: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text("✨ AI 助手", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 24.dp))
-        Text("输入消息开始对话，或试试这些示例：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 24.dp))
-        val examples = listOf("帮我写一个 Kotlin 协程的例子", "用简单的方式解释 Transformer 架构", "写一首关于夏日的短诗")
-        examples.forEach { example ->
-            Surface(onClick = { onSend(example) }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text(example, modifier = Modifier.padding(16.dp), fontSize = 14.sp)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ConversationDrawer(
-    conversations: List<Conversation>,
-    activeConversationId: String?,
-    onSelect: (String) -> Unit,
-    onNewChat: () -> Unit,
-    onRename: (String, String) -> Unit,
-    onDelete: (String) -> Unit,
-    onTogglePin: (String, Boolean) -> Unit,
-    onExport: (String) -> Unit,
-    onNavigateToAccount: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onSearch: (String) -> Unit
-) {
-    var menuConvId by remember { mutableStateOf<String?>(null) }
-    var showRenameDialog by remember { mutableStateOf<String?>(null) }
-    var showDeleteConfirmId by remember { mutableStateOf<String?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("历史对话", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = onNewChat) { Icon(Icons.Default.Add, contentDescription = "新建对话", tint = Primary) }
-        }
-
-        // 搜索框
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = {
-                searchQuery = it
-                onSearch(it)
-            },
-            placeholder = { Text("搜索会话…", fontSize = 13.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp)
-        )
-
-        Divider(color = MaterialTheme.colorScheme.outlineVariant)
-        if (conversations.isEmpty()) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("暂无对话", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-            }
-        } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(conversations, key = { it.id }) { conv ->
-                    val isActive = conv.id == activeConversationId
-                    val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
-                    Surface(
-                        color = bgColor,
-                        modifier = Modifier.fillMaxWidth().combinedClickable(
-                            onClick = { onSelect(conv.id) },
-                            onLongClick = { menuConvId = conv.id }
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (conv.isPinned) {
-                                Icon(
-                                    Icons.Default.PushPin,
-                                    contentDescription = "已置顶",
-                                    tint = Primary,
-                                    modifier = Modifier.size(14.dp).padding(end = 2.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(conv.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                                Text(formatTime(conv.updatedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
-                            }
-                        }
-                    }
-                    // 长按弹出菜单：重命名 / 删除 / 置顶 / 导出
-                    DropdownMenu(
-                        expanded = menuConvId == conv.id,
-                        onDismissRequest = { menuConvId = null }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(if (conv.isPinned) "取消置顶" else "置顶") },
-                            onClick = { menuConvId = null; onTogglePin(conv.id, conv.isPinned) },
-                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("重命名") },
-                            onClick = { menuConvId = null; showRenameDialog = conv.id },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("导出") },
-                            onClick = { menuConvId = null; onExport(conv.id) },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("删除", color = Color(0xFFD32F2F)) },
-                            onClick = { menuConvId = null; showDeleteConfirmId = conv.id },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp)) }
-                        )
-                    }
-                }
-            }
-        }
-
-        // 重命名对话框
-        showRenameDialog?.let { convId ->
-            val conv = conversations.firstOrNull { it.id == convId }
-            if (conv != null) {
-                var newName by remember { mutableStateOf(conv.title) }
-                AlertDialog(
-                    onDismissRequest = { showRenameDialog = null },
-                    title = { Text("重命名对话") },
-                    text = {
-                        OutlinedTextField(
-                            value = newName,
-                            onValueChange = { newName = it },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            if (newName.isNotBlank()) onRename(convId, newName)
-                            showRenameDialog = null
-                        }) { Text("确定") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showRenameDialog = null }) { Text("取消") }
-                    }
-                )
-            }
-        }
-
-        // 删除确认对话框
-        showDeleteConfirmId?.let { convId ->
-            AlertDialog(
-                onDismissRequest = { showDeleteConfirmId = null },
-                title = { Text("删除对话") },
-                text = { Text("确定要删除这个对话吗？此操作不可恢复。") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            onDelete(convId)
-                            showDeleteConfirmId = null
-                        },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = Color(0xFFD32F2F)
-                        )
-                    ) { Text("删除") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteConfirmId = null }) { Text("取消") }
-                }
-            )
-        }
-
-        Divider(color = MaterialTheme.colorScheme.outlineVariant)
-        Row(modifier = Modifier.fillMaxWidth().clickable { onNavigateToAccount() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = CircleShape, color = Primary, modifier = Modifier.size(36.dp)) {
-                Box(contentAlignment = Alignment.Center) { Text("U", color = Color.White, fontWeight = FontWeight.Bold) }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("账号中心", modifier = Modifier.weight(1f))
-            Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Row(modifier = Modifier.fillMaxWidth().clickable { onNavigateToSettings() }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("设置", modifier = Modifier.weight(1f))
-            Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-private fun formatTime(timestamp: Long): String {
-    val diff = System.currentTimeMillis() - timestamp
-    return when {
-        diff < 60000 -> "刚刚"
-        diff < 3600000 -> "${diff / 60000} 分钟前"
-        diff < 86400000 -> "${diff / 3600000} 小时前"
-        else -> "${diff / 86400000} 天前"
-    }
-}
-
-private fun friendlyModelName(model: String): String = when {
+internal fun friendlyModelName(model: String): String = when {
     model == "nvidia/nemotron-nano-12b-v2-vl" -> "Nemotron Nano 12B"
     model == "nvidia/nemotron-4-340b-instruct" -> "Nemotron 4 340B"
     model.startsWith("nvidia/") -> "Nemotron"
