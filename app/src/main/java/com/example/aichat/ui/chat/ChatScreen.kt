@@ -33,14 +33,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Stop
 import com.example.aichat.ui.icons.ExtendedIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
@@ -293,7 +290,7 @@ fun ChatScreen(
                     showMsgMenu = false
                     selectedMessage = null
                 },
-                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                leadingIcon = { Icon(Icons.Extended.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
             )
             DropdownMenuItem(
                 text = { Text("删除", color = MaterialTheme.colorScheme.error) },
@@ -591,7 +588,7 @@ private fun ChatInputBar(
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             if (isGenerating) {
-                                Icon(Icons.Default.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Extended.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(16.dp))
                             } else {
                                 Icon(Icons.Extended.ArrowForward, contentDescription = "发送", tint = Color.White, modifier = Modifier.size(16.dp))
                             }
@@ -834,7 +831,7 @@ private fun ConversationDrawer(
                         ) {
                             if (conv.isPinned) {
                                 Icon(
-                                    Icons.Default.PushPin,
+                                    Icons.Extended.PushPin,
                                     contentDescription = "已置顶",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(14.dp).padding(end = 2.dp)
@@ -855,7 +852,7 @@ private fun ConversationDrawer(
                         DropdownMenuItem(
                             text = { Text(if (conv.isPinned) "取消置顶" else "置顶") },
                             onClick = { menuConvId = null; onTogglePin(conv.id, conv.isPinned) },
-                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                            leadingIcon = { Icon(Icons.Extended.PushPin, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("重命名") },
@@ -865,7 +862,7 @@ private fun ConversationDrawer(
                         DropdownMenuItem(
                             text = { Text("导出") },
                             onClick = { menuConvId = null; onExport(conv.id) },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                            leadingIcon = { Icon(Icons.Extended.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("删除", color = MaterialTheme.colorScheme.error) },

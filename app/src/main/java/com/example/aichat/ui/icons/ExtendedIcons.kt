@@ -413,3 +413,226 @@ private val _brokenImage = Builder(
         close()
     }
 }.build()
+
+val ExtendedIcons.ContentCopy: ImageVector
+    get() = _contentCopy
+
+private val _contentCopy = Builder(
+    name = "ContentCopy",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 960f,
+    viewportHeight = 960f
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(360f, 840f)
+        quadTo(327f, 840f, 303.5f, 816.5f)
+        quadTo(280f, 793f, 280f, 760f)
+        lineTo(280f, 280f)
+        quadTo(280f, 247f, 303.5f, 223.5f)
+        quadTo(327f, 200f, 360f, 200f)
+        lineTo(760f, 200f)
+        quadTo(793f, 200f, 816.5f, 223.5f)
+        quadTo(840f, 247f, 840f, 280f)
+        lineTo(840f, 760f)
+        quadTo(840f, 793f, 816.5f, 816.5f)
+        quadTo(793f, 840f, 760f, 840f)
+        close()
+        moveTo(360f, 760f)
+        lineTo(760f, 760f)
+        lineTo(760f, 280f)
+        lineTo(360f, 280f)
+        close()
+        moveTo(200f, 680f)
+        lineTo(200f, 200f)
+        quadTo(200f, 167f, 223.5f, 143.5f)
+        quadTo(247f, 120f, 280f, 120f)
+        lineTo(680f, 120f)
+        lineTo(680f, 200f)
+        lineTo(280f, 200f)
+        lineTo(280f, 680f)
+        close()
+    }
+}.build()
+
+val ExtendedIcons.PushPin: ImageVector
+    get() = _pushPin
+
+private val _pushPin = Builder(
+    name = "PushPin",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 960f,
+    viewportHeight = 960f
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(640f, 478f)
+        lineTo(640f, 200f)
+        quadTo(640f, 183f, 628.5f, 171.5f)
+        quadTo(617f, 160f, 600f, 160f)
+        lineTo(360f, 160f)
+        quadTo(343f, 160f, 331.5f, 171.5f)
+        quadTo(320f, 183f, 320f, 200f)
+        lineTo(320f, 478f)
+        quadTo(320f, 502f, 306f, 521f)
+        quadTo(292f, 540f, 270f, 550f)
+        quadTo(240f, 564f, 220f, 590f)
+        quadTo(200f, 616f, 200f, 648f)
+        lineTo(200f, 680f)
+        lineTo(420f, 680f)
+        lineTo(450f, 840f)
+        quadTo(454f, 856f, 468f, 864f)
+        quadTo(482f, 872f, 498f, 868f)
+        quadTo(514f, 864f, 522f, 850f)
+        quadTo(530f, 836f, 526f, 820f)
+        lineTo(500f, 680f)
+        lineTo(760f, 680f)
+        lineTo(760f, 648f)
+        quadTo(760f, 616f, 740f, 590f)
+        quadTo(720f, 564f, 690f, 550f)
+        quadTo(668f, 540f, 654f, 521f)
+        quadTo(640f, 502f, 640f, 478f)
+        close()
+    }
+}.build()
+
+val ExtendedIcons.Stop: ImageVector
+    get() = _stop
+
+private val _stop = Builder(
+    name = "Stop",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 960f,
+    viewportHeight = 960f
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(200f, 760f)
+        quadTo(167f, 760f, 143.5f, 736.5f)
+        quadTo(120f, 713f, 120f, 680f)
+        lineTo(120f, 280f)
+        quadTo(120f, 247f, 143.5f, 223.5f)
+        quadTo(167f, 200f, 200f, 200f)
+        lineTo(760f, 200f)
+        quadTo(793f, 200f, 816.5f, 223.5f)
+        quadTo(840f, 247f, 840f, 280f)
+        lineTo(840f, 680f)
+        quadTo(840f, 713f, 816.5f, 736.5f)
+        quadTo(793f, 760f, 760f, 760f)
+        close()
+        moveTo(200f, 680f)
+        lineTo(760f, 680f)
+        lineTo(760f, 280f)
+        lineTo(200f, 280f)
+        close()
+    }
+}.build()
+
+val ExtendedIcons.Visibility: ImageVector
+    get() = _visibility
+
+private val _visibility = Builder(
+    name = "Visibility",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 960f,
+    viewportHeight = 960f
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(480f, 640f)
+        quadTo(546f, 640f, 593f, 593f)
+        quadTo(640f, 546f, 640f, 480f)
+        quadTo(640f, 414f, 593f, 367f)
+        quadTo(546f, 320f, 480f, 320f)
+        quadTo(414f, 320f, 367f, 367f)
+        quadTo(320f, 414f, 320f, 480f)
+        quadTo(320f, 546f, 367f, 593f)
+        quadTo(414f, 640f, 480f, 640f)
+        close()
+        moveTo(480f, 580f)
+        quadTo(439f, 580f, 409.5f, 550.5f)
+        quadTo(380f, 521f, 380f, 480f)
+        quadTo(380f, 439f, 409.5f, 409.5f)
+        quadTo(439f, 380f, 480f, 380f)
+        quadTo(521f, 380f, 550.5f, 409.5f)
+        quadTo(580f, 439f, 580f, 480f)
+        quadTo(580f, 521f, 550.5f, 550.5f)
+        quadTo(521f, 580f, 480f, 580f)
+        close()
+        moveTo(480f, 760f)
+        quadTo(340f, 760f, 223f, 687f)
+        quadTo(106f, 614f, 40f, 480f)
+        quadTo(106f, 346f, 223f, 273f)
+        quadTo(340f, 200f, 480f, 200f)
+        quadTo(620f, 200f, 737f, 273f)
+        quadTo(854f, 346f, 920f, 480f)
+        quadTo(854f, 614f, 737f, 687f)
+        quadTo(620f, 760f, 480f, 760f)
+        close()
+    }
+}.build()
+
+val ExtendedIcons.VisibilityOff: ImageVector
+    get() = _visibilityOff
+
+private val _visibilityOff = Builder(
+    name = "VisibilityOff",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 960f,
+    viewportHeight = 960f
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(634f, 554f)
+        lineTo(582f, 502f)
+        quadTo(590f, 478f, 585f, 454f)
+        quadTo(580f, 430f, 565f, 415f)
+        quadTo(550f, 400f, 526f, 395f)
+        quadTo(502f, 390f, 478f, 398f)
+        lineTo(426f, 346f)
+        quadTo(450f, 334f, 476f, 327f)
+        quadTo(502f, 320f, 530f, 320f)
+        quadTo(596f, 320f, 643f, 367f)
+        quadTo(690f, 414f, 690f, 480f)
+        quadTo(690f, 508f, 683f, 534f)
+        quadTo(676f, 560f, 634f, 554f)
+        close()
+        moveTo(480f, 760f)
+        quadTo(416f, 760f, 358f, 743f)
+        quadTo(300f, 726f, 248f, 694f)
+        lineTo(306f, 636f)
+        quadTo(346f, 658f, 389f, 669f)
+        quadTo(432f, 680f, 480f, 680f)
+        quadTo(596f, 680f, 693f, 614f)
+        quadTo(790f, 548f, 834f, 440f)
+        quadTo(814f, 390f, 782f, 347f)
+        quadTo(750f, 304f, 708f, 270f)
+        lineTo(762f, 216f)
+        quadTo(816f, 256f, 858f, 308f)
+        quadTo(900f, 360f, 920f, 440f)
+        quadTo(868f, 572f, 754f, 656f)
+        quadTo(640f, 740f, 480f, 760f)
+        close()
+        moveTo(480f, 200f)
+        quadTo(544f, 200f, 602f, 217f)
+        quadTo(660f, 234f, 712f, 266f)
+        lineTo(654f, 324f)
+        quadTo(614f, 302f, 571f, 291f)
+        quadTo(528f, 280f, 480f, 280f)
+        quadTo(364f, 280f, 267f, 346f)
+        quadTo(170f, 412f, 126f, 520f)
+        quadTo(146f, 570f, 178f, 613f)
+        quadTo(210f, 656f, 252f, 690f)
+        lineTo(198f, 744f)
+        quadTo(144f, 704f, 102f, 652f)
+        quadTo(60f, 600f, 40f, 520f)
+        quadTo(92f, 388f, 206f, 304f)
+        quadTo(320f, 220f, 480f, 200f)
+        close()
+        moveTo(792f, 864f)
+        lineTo(248f, 320f)
+        lineTo(306f, 262f)
+        lineTo(850f, 806f)
+        close()
+    }
+}.build()
