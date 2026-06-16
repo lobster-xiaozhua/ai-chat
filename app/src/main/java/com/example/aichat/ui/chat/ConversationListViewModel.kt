@@ -79,6 +79,15 @@ class ConversationListViewModel @Inject constructor(
         }
     }
 
+    fun updateConversationTitle(id: String, newTitle: String) {
+        viewModelScope.launch {
+            val conv = _conversations.value.firstOrNull { it.id == id } ?: return@launch
+            if (conv.title != "新对话") return@launch
+            chatRepository.updateConversation(conv.copy(title = newTitle, updatedAt = System.currentTimeMillis()))
+            Log.d(TAG, "Auto-updated conversation $id title to '$newTitle'")
+        }
+    }
+
     /**
      * 搜索会话列表；空 query 时退回到全量列表。
      */

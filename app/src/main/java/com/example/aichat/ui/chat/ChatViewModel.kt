@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -58,13 +59,13 @@ class ChatViewModel @Inject constructor(
     private val _searchMode = MutableStateFlow(false)
     val searchMode: StateFlow<Boolean> = _searchMode.asStateFlow()
 
-    private val _pendingImageUrls = androidx.compose.runtime.mutableStateListOf<String>()
-    val pendingImageUrls: androidx.compose.runtime.snapshots.SnapshotStateList<String> = _pendingImageUrls
+    private val _pendingImageUrls = MutableStateFlow<List<String>>(emptyList())
+    val pendingImageUrls: StateFlow<List<String>> = _pendingImageUrls.asStateFlow()
 
-    private val _pendingDocumentUrls = androidx.compose.runtime.mutableStateListOf<String>()
-    val pendingDocumentUrls: androidx.compose.runtime.snapshots.SnapshotStateList<String> = _pendingDocumentUrls
-    private val _pendingDocumentNames = androidx.compose.runtime.mutableStateMapOf<String, String>()
-    val pendingDocumentNames: androidx.compose.runtime.snapshots.SnapshotStateMap<String, String> = _pendingDocumentNames
+    private val _pendingDocumentUrls = MutableStateFlow<List<String>>(emptyList())
+    val pendingDocumentUrls: StateFlow<List<String>> = _pendingDocumentUrls.asStateFlow()
+    private val _pendingDocumentNames = MutableStateFlow<Map<String, String>>(emptyMap())
+    val pendingDocumentNames: StateFlow<Map<String, String>> = _pendingDocumentNames.asStateFlow()
 
     private val _selectedModelIds = MutableStateFlow(emptyList<String>())
     val selectedModelIds: StateFlow<List<String>> = _selectedModelIds.asStateFlow()
@@ -76,7 +77,10 @@ class ChatViewModel @Inject constructor(
     private var generationJob: Job? = null
     private val _currentConversationId = MutableStateFlow<String?>(null)
     val currentConversationId: StateFlow<String?> = _currentConversationId.asStateFlow()
-    private var historyForApi = java.util.Collections.synchronizedList(mutableListOf<Pair<String, String>>())
+
+    private fun List<Message>.toApiHistory(): List<Pair<String, String>> =
+        filter { it.role == "user" || it.role == "assistant" }
+            .map { it.role to it.content }
 
     // 草稿管理：conversationId → draft text（ConcurrentHashMap 保证线程安全）
     private val drafts = java.util.concurrent.ConcurrentHashMap<String, String>()
@@ -106,32 +110,41 @@ class ChatViewModel @Inject constructor(
 
     /* ---------- 对外操作：图片附件 ---------- */
     fun addImageUrls(urls: List<String>) {
-        for (url in urls) {
-            if (url !in _pendingImageUrls) _pendingImageUrls.add(url)
-        }
+        _pendingImageUrls.value = (_pendingImageUrls.value + urls).distinct()
     }
 
-    fun removeImageUrl(url: String) { _pendingImageUrls.remove(url) }
-    fun clearPendingImages() { _pendingImageUrls.clear() }
+    fun removeImageUrl(url: String) {
+        _pendingImageUrls.value = _pendingImageUrls.value.filter { it != url }
+    }
+    fun clearPendingImages() {
+        _pendingImageUrls.value = emptyList()
+    }
 
     /* ---------- 对外操作：文档附件 ---------- */
     fun addDocumentUrls(urisWithNames: List<Pair<String, String>>) {
+        val currentUrls = _pendingDocumentUrls.value
+        val currentNames = _pendingDocumentNames.value.toMutableMap()
+        val newUrls = currentUrls.toMutableList()
         for ((uri, name) in urisWithNames) {
-            if (uri !in _pendingDocumentUrls) {
-                _pendingDocumentUrls.add(uri)
-                _pendingDocumentNames[uri] = name.ifEmpty { "未命名文档" }
+            if (uri !in currentUrls) {
+                newUrls.add(uri)
+                currentNames[uri] = name.ifEmpty { "未命名文档" }
             }
         }
+        _pendingDocumentUrls.value = newUrls
+        _pendingDocumentNames.value = currentNames
     }
 
     fun removeDocumentUrl(uri: String) {
-        _pendingDocumentUrls.remove(uri)
-        _pendingDocumentNames.remove(uri)
+        _pendingDocumentUrls.value = _pendingDocumentUrls.value.filter { it != uri }
+        val names = _pendingDocumentNames.value.toMutableMap()
+        names.remove(uri)
+        _pendingDocumentNames.value = names
     }
 
     fun clearDocuments() {
-        _pendingDocumentUrls.clear()
-        _pendingDocumentNames.clear()
+        _pendingDocumentUrls.value = emptyList()
+        _pendingDocumentNames.value = emptyMap()
     }
 
     /* ---------- 草稿管理 ---------- */
@@ -173,26 +186,20 @@ class ChatViewModel @Inject constructor(
             val history = chatRepository.getMessagesAsList(conversationId)
             _messages.value = history
             _currentConversationId.value = conversationId
-            historyForApi = java.util.Collections.synchronizedList(
-                history
-                    .filter { it.role == "user" || it.role == "assistant" }
-                    .map { it.role to it.content }
-                    .toMutableList()
-            )
             Log.d(TAG, "Loaded conversation $conversationId with ${history.size} messages")
         }
     }
 
     fun sendMessage(text: String) {
-        val images = _pendingImageUrls.toList()
-        val documents = _pendingDocumentUrls.toList()
-        val docNames = _pendingDocumentNames.toMap()
+        val images = _pendingImageUrls.value
+        val documents = _pendingDocumentUrls.value
+        val docNames = _pendingDocumentNames.value
         val convId = _currentConversationId.value ?: return
         if (text.isBlank() && images.isEmpty() && documents.isEmpty()) return
 
-        _pendingImageUrls.clear()
-        _pendingDocumentUrls.clear()
-        _pendingDocumentNames.clear()
+        _pendingImageUrls.value = emptyList()
+        _pendingDocumentUrls.value = emptyList()
+        _pendingDocumentNames.value = emptyMap()
         // 清除草稿
         clearDraft(convId)
         _lastGenerationFailed.value = false
@@ -208,8 +215,22 @@ class ChatViewModel @Inject constructor(
         )
 
         _messages.value = _messages.value + userMsg
-        historyForApi.add("user" to initialTextForHistory)
-        viewModelScope.launch { runCatching { chatRepository.insertMessage(userMsg) } }
+        viewModelScope.launch {
+            val insertedId = chatRepository.insertMessage(userMsg)
+            if (insertedId > 0) {
+                _messages.value = _messages.value.map {
+                    if (it.timestamp == now && it.role == "user" && it.id == 0L) it.copy(id = insertedId) else it
+                }
+            }
+        }
+
+        val userMsgCount = _messages.value.count { it.role == "user" }
+        if (userMsgCount == 1) {
+            viewModelScope.launch {
+                val title = text.take(20).replace("\n", " ")
+                updateConversationTitle(convId, title)
+            }
+        }
 
         _isGenerating.value = true
         _error.value = null
@@ -243,17 +264,16 @@ class ChatViewModel @Inject constructor(
                     (docParts.joinToString("") + "\n" + text).trim()
                 } else text
 
+                val apiHistory = _messages.value.toApiHistory().toMutableList()
                 if (docParts.isNotEmpty()) {
-                    val lastIdx = historyForApi.indexOfLast { it.first == "user" }
-                    if (lastIdx >= 0) {
-                        val newHistory = historyForApi.toMutableList()
-                        newHistory[lastIdx] = "user" to combinedUserText
-                        historyForApi = java.util.Collections.synchronizedList(newHistory)
+                    val lastUserIdx = apiHistory.indexOfLast { it.first == "user" }
+                    if (lastUserIdx >= 0) {
+                        apiHistory[lastUserIdx] = "user" to combinedUserText
                     }
                 }
 
                 aiRepository.streamChat(
-                    messages = historyForApi,
+                    messages = apiHistory.toList(),
                     systemPrompt = _systemPrompt.value,
                     baseUrl = _baseUrl.value,
                     model = _currentModel.value,
@@ -284,13 +304,18 @@ class ChatViewModel @Inject constructor(
                         timestamp = System.currentTimeMillis()
                     )
                     _messages.value = _messages.value + finalMsg
-                    historyForApi.add("assistant" to finalContent)
-                    viewModelScope.launch { runCatching { chatRepository.insertMessage(finalMsg) } }
+                    viewModelScope.launch {
+                        val insertedId = chatRepository.insertMessage(finalMsg)
+                        if (insertedId > 0) {
+                            _messages.value = _messages.value.map {
+                                if (it.timestamp == finalMsg.timestamp && it.role == "assistant" && it.id == 0L) it.copy(id = insertedId) else it
+                            }
+                        }
+                    }
                 }
             } catch (e: com.example.aichat.data.repository.ApiException) {
                 _error.value = e.message ?: "发生错误"
                 _lastGenerationFailed.value = true
-                historyForApi.removeLastOrNull()
                 restorePendingAttachments(images, documents, docNames)
                 Log.w(TAG, "API error: ${e.message}")
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -303,17 +328,14 @@ class ChatViewModel @Inject constructor(
                         timestamp = System.currentTimeMillis()
                     )
                     _messages.value = _messages.value + finalMsg
-                    historyForApi.add("assistant" to partial)
                     viewModelScope.launch { runCatching { chatRepository.insertMessage(finalMsg) } }
                 } else {
-                    historyForApi.removeLastOrNull()
                     restorePendingAttachments(images, documents, docNames)
                 }
                 throw e
             } catch (e: Exception) {
                 _error.value = "消息生成失败：${e.message}"
                 _lastGenerationFailed.value = true
-                historyForApi.removeLastOrNull()
                 restorePendingAttachments(images, documents, docNames)
                 Log.w(TAG, "Generation failed: ${e.message}")
             } finally {
@@ -328,15 +350,18 @@ class ChatViewModel @Inject constructor(
         documents: List<String>,
         docNames: Map<String, String>
     ) {
-        for (url in images) {
-            if (url !in _pendingImageUrls) _pendingImageUrls.add(url)
-        }
+        _pendingImageUrls.value = (_pendingImageUrls.value + images).distinct()
+        val currentUrls = _pendingDocumentUrls.value
+        val currentNames = _pendingDocumentNames.value.toMutableMap()
+        val newUrls = currentUrls.toMutableList()
         for (uri in documents) {
-            if (uri !in _pendingDocumentUrls) {
-                _pendingDocumentUrls.add(uri)
-                docNames[uri]?.let { _pendingDocumentNames[uri] = it }
+            if (uri !in currentUrls) {
+                newUrls.add(uri)
+                docNames[uri]?.let { currentNames[uri] = it }
             }
         }
+        _pendingDocumentUrls.value = newUrls
+        _pendingDocumentNames.value = currentNames
     }
 
     fun stopGeneration() {
@@ -355,23 +380,12 @@ class ChatViewModel @Inject constructor(
     /** 删除指定消息 */
     fun deleteMessage(messageId: Long) {
         val currentMessages = _messages.value
-        val msgIndex = currentMessages.indexOfFirst { it.id == messageId }
-        if (msgIndex < 0) {
+        val target = currentMessages.firstOrNull { it.id == messageId }
+        if (target == null) {
             Log.w(TAG, "deleteMessage: message $messageId not found")
             return
         }
-        // 在 _messages 中计算该消息在 (user|assistant) 子序列中的索引
-        val historyIdx = currentMessages
-            .take(msgIndex + 1)
-            .count { it.role == "user" || it.role == "assistant" } - 1
-
         _messages.value = currentMessages.filter { it.id != messageId }
-
-        if (historyIdx in 0 until historyForApi.size) {
-            historyForApi = java.util.Collections.synchronizedList(
-                historyForApi.toMutableList().also { it.removeAt(historyIdx) }
-            )
-        }
         viewModelScope.launch {
             runCatching { chatRepository.deleteMessageById(messageId) }
                 .onFailure { Log.w(TAG, "Failed to delete message $messageId: ${it.message}") }
@@ -386,26 +400,8 @@ class ChatViewModel @Inject constructor(
             Log.w(TAG, "regenerateLastAssistant: no assistant message found")
             return
         }
-        val assistantIdx = currentMessages.indexOfLast { it.id == lastAssistant.id }
-        // 在 (user|assistant) 子序列中的索引
-        val assistantHistoryIdx = currentMessages
-            .take(assistantIdx + 1)
-            .count { it.role == "user" || it.role == "assistant" } - 1
-
-        // 找到最后一条用户消息
         val lastUserMsg = currentMessages.lastOrNull { it.role == "user" }
-        val userIdx = lastUserMsg?.let { currentMessages.indexOfLast { m -> m.id == it.id } } ?: -1
-        val userHistoryIdx = if (userIdx >= 0) {
-            currentMessages.take(userIdx + 1).count { it.role == "user" || it.role == "assistant" } - 1
-        } else -1
 
-        // 从 historyForApi 移除 assistant 和 user（按索引从后往前删除）
-        val newHistory = historyForApi.toMutableList()
-        if (assistantHistoryIdx in 0 until newHistory.size) newHistory.removeAt(assistantHistoryIdx)
-        if (userHistoryIdx in 0 until newHistory.size) newHistory.removeAt(userHistoryIdx)
-        historyForApi = java.util.Collections.synchronizedList(newHistory)
-
-        // 从 messages 移除
         _messages.value = currentMessages.filter { it.id != lastAssistant.id && it.id != lastUserMsg?.id }
 
         viewModelScope.launch {
@@ -422,8 +418,47 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun regenerateMessage(messageId: Long) {
+        val currentMessages = _messages.value
+        val targetAssistant = currentMessages.firstOrNull { it.id == messageId } ?: run {
+            Log.w(TAG, "regenerateMessage: message $messageId not found")
+            return
+        }
+        if (targetAssistant.role != "assistant") return
+
+        val assistantIdx = currentMessages.indexOf(targetAssistant)
+        val userMsg = currentMessages.take(assistantIdx).lastOrNull { it.role == "user" }
+
+        _messages.value = currentMessages.filter { it.id != targetAssistant.id && it.id != userMsg?.id }
+
+        viewModelScope.launch {
+            runCatching { chatRepository.deleteMessageById(targetAssistant.id) }
+            userMsg?.let { runCatching { chatRepository.deleteMessageById(it.id) } }
+        }
+
+        if (userMsg != null) {
+            Log.d(TAG, "Regenerating message $messageId from user: '${userMsg.content.take(50)}...'")
+            sendMessage(userMsg.content)
+        } else {
+            Log.w(TAG, "regenerateMessage: no user message found before $messageId")
+            _error.value = "没有可重新生成的用户消息"
+        }
+    }
+
     /* ---------- 数据统计 ---------- */
 
     suspend fun getConversationCount(): Int = chatRepository.getConversationCount()
     suspend fun getMessageCount(): Int = chatRepository.getMessageCount()
+
+    private suspend fun updateConversationTitle(convId: String, title: String) {
+        try {
+            val conv = chatRepository.getConversations().first().firstOrNull { it.id == convId }
+            if (conv != null && conv.title == "新对话") {
+                chatRepository.updateConversation(conv.copy(title = title, updatedAt = System.currentTimeMillis()))
+                Log.d(TAG, "Updated conversation title: $title")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to update conversation title: ${e.message}")
+        }
+    }
 }

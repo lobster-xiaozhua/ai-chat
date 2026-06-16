@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.example.aichat.ui.theme.Primary
 
 /**
  * 消息气泡 —— 支持纯文本、流式文本、以及文本+图片（用户消息）。
@@ -45,7 +44,7 @@ fun MessageBubble(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        val bgColor = if (isUser) Primary else MaterialTheme.colorScheme.surfaceVariant
+        val bgColor = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
         val textColor = if (isUser) Color.White else MaterialTheme.colorScheme.onSurface
 
         Surface(

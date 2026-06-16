@@ -1,6 +1,7 @@
 package com.example.aichat.ui.chat
 
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -23,12 +24,12 @@ import java.util.LinkedHashMap
  *      AnnotatedString 只会解析一次。
  */
 @Composable
-fun MarkdownRenderer(text: String, textColor: Color, isStreaming: Boolean = false) {
+fun MarkdownRenderer(text: String, textColor: Color, isStreaming: Boolean = false, linkColor: Color = MaterialTheme.colorScheme.primary) {
     val annotated = if (isStreaming) {
         // 流式：不做 Markdown 解析 —— 直接构造 String，最快
         AnnotatedString(text)
     } else {
-        rememberParsed(text, textColor)
+        rememberParsed(text, textColor, linkColor)
     }
     SelectionContainer {
         Text(text = annotated, fontSize = 15.sp, lineHeight = 22.sp)
@@ -60,16 +61,16 @@ private object MarkdownCache {
 }
 
 @Composable
-private fun rememberParsed(text: String, color: Color): AnnotatedString {
+private fun rememberParsed(text: String, color: Color, linkColor: Color): AnnotatedString {
     // Compose 的 remember：只要 text 不变就不会重新计算；
     // 但 text 是 Compose 框架传入的引用，每次 UI 重组会做 equals 比较，OK。
     // 额外再加一层 MarkdownCache，保证跨重组 / 跨 Composable 都能命中。
     val key = text to color.hashCode()
     val cached = MarkdownCache.get(key)
-    return cached ?: parseMarkdown(text, color).also { MarkdownCache.put(key, it) }
+    return cached ?: parseMarkdown(text, color, linkColor).also { MarkdownCache.put(key, it) }
 }
 
-private fun parseMarkdown(text: String, color: Color): AnnotatedString {
+private fun parseMarkdown(text: String, color: Color, linkColor: Color): AnnotatedString {
     return buildAnnotatedString {
         var remaining = text
 
@@ -78,7 +79,7 @@ private fun parseMarkdown(text: String, color: Color): AnnotatedString {
             val startIdx = remaining.indexOf("```")
             if (startIdx > 0) {
                 val beforeCode = remaining.substring(0, startIdx)
-                append(parseInline(beforeCode, color))
+                append(parseInline(beforeCode, color, linkColor))
             }
             val endIdx = remaining.indexOf("```", startIdx + 3)
             if (endIdx == -1) {
@@ -93,12 +94,12 @@ private fun parseMarkdown(text: String, color: Color): AnnotatedString {
         }
 
         if (remaining.isNotEmpty()) {
-            append(parseInline(remaining, color))
+            append(parseInline(remaining, color, linkColor))
         }
     }
 }
 
-private fun parseInline(text: String, color: Color): AnnotatedString {
+private fun parseInline(text: String, color: Color, linkColor: Color): AnnotatedString {
     return buildAnnotatedString {
         var remaining = text
 
@@ -109,24 +110,24 @@ private fun parseInline(text: String, color: Color): AnnotatedString {
             var cursor = 0
             for (m in linkList) {
                 if (cursor < m.range.first) {
-                    append(parseNonLink(remaining.substring(cursor, m.range.first), color))
+                    append(parseNonLink(remaining.substring(cursor, m.range.first), color, linkColor))
                 }
                 val display = m.groupValues[1]
-                pushStyle(SpanStyle(color = Primary, fontWeight = FontWeight.Medium))
+                pushStyle(SpanStyle(color = linkColor, fontWeight = FontWeight.Medium))
                 append(display)
                 pop()
                 cursor = m.range.last + 1
             }
             if (cursor < remaining.length) {
-                append(parseNonLink(remaining.substring(cursor), color))
+                append(parseNonLink(remaining.substring(cursor), color, linkColor))
             }
         } else {
-            append(parseNonLink(remaining, color))
+            append(parseNonLink(remaining, color, linkColor))
         }
     }
 }
 
-private fun parseNonLink(text: String, color: Color): AnnotatedString {
+private fun parseNonLink(text: String, color: Color, linkColor: Color): AnnotatedString {
     return buildAnnotatedString {
         var remaining = text
 
@@ -185,5 +186,3 @@ private fun parseFormatting(text: String, color: Color): AnnotatedString {
 
 // 链接正则 —— 模块级 private，只创建一次
 private val linkPat = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")
-
-private val Primary = Color(0xFF6750A4)

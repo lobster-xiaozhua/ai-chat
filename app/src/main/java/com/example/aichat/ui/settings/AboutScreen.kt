@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.aichat.BuildConfig
-import com.example.aichat.ui.theme.Primary
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +88,7 @@ fun AboutScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = Primary,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 12.dp)
                 ) {
                     Text("✨", fontSize = 36.sp, modifier = Modifier.padding(16.dp))
@@ -115,7 +115,7 @@ fun AboutScreen(
                     Text("检查更新", modifier = Modifier.weight(1f), fontSize = 14.sp)
                     when (updateState) {
                         is UpdateViewModel.UpdateState.Checking -> {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
                         }
                         is UpdateViewModel.UpdateState.UpToDate -> {
                             Text("已是最新", color = Color(0xFF4CAF50), fontSize = 13.sp)
@@ -132,7 +132,7 @@ fun AboutScreen(
                         Surface(
                             onClick = { updateViewModel.checkForUpdate(silent = false) },
                             shape = RoundedCornerShape(8.dp),
-                            color = Primary,
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(start = 4.dp)
                         ) {
                             Text(
@@ -152,13 +152,13 @@ fun AboutScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("正在下载更新…", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.weight(1f))
-                        Text("${(downloadProgress * 100).toInt()}%", fontSize = 12.sp, color = Primary)
+                        Text("${(downloadProgress * 100).toInt()}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                     }
                     Spacer(Modifier.height(4.dp))
                     LinearProgressIndicator(
                         progress = { downloadProgress },
                         modifier = Modifier.fillMaxWidth(),
-                        color = Primary,
+                        color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     )
                 }
@@ -174,13 +174,13 @@ fun AboutScreen(
                     AboutRow(
                         title = "开源许可",
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://opensource.org/licenses")))
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/lobster-xiaozhua/ai-chat/blob/main/LICENSE")))
                         }
                     )
                     AboutRow(
                         title = "隐私政策",
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/privacy")))
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/lobster-xiaozhua/ai-chat/blob/main/PRIVACY.md")))
                         }
                     )
                     AboutRow(

@@ -55,7 +55,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.aichat.ui.theme.Primary
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -69,8 +68,6 @@ fun SettingsScreen(
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val theme by viewModel.theme.collectAsState()
-    val language by viewModel.language.collectAsState()
-    val fontSize by viewModel.fontSize.collectAsState()
     val defaultModel by viewModel.defaultModel.collectAsState()
     val temperature by viewModel.temperature.collectAsState()
     val systemPrompt by viewModel.systemPrompt.collectAsState()
@@ -171,24 +168,7 @@ fun SettingsScreen(
                             }
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DropdownSelector(
-                        label = "语言",
-                        value = if (language == "zh") "中文" else "English",
-                        options = listOf("中文" to "zh", "English" to "en"),
-                        onSelect = { viewModel.setLanguage(it) }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DropdownSelector(
-                        label = "字号",
-                        value = when (fontSize) {
-                            "small" -> "小"
-                            "large" -> "大"
-                            else -> "中"
-                        },
-                        options = listOf("小" to "small", "中" to "medium", "大" to "large"),
-                        onSelect = { viewModel.setFontSize(it) }
-                    )
+
                 }
             }
 
@@ -283,8 +263,8 @@ fun SettingsScreen(
                             viewModel.setTemperature(String.format("%.1f", tempValue))
                         },
                         colors = androidx.compose.material3.SliderDefaults.colors(
-                            thumbColor = Primary,
-                            activeTrackColor = Primary
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary
                         )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -303,7 +283,7 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(1f),
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("›", color = Color.Gray)
+                            Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -318,8 +298,8 @@ fun SettingsScreen(
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("自定义大模型配置 (API 地址 / 模型名 / Key)", modifier = Modifier.weight(1f), fontSize = 13.sp, color = Color.Gray)
-                            Text("›", color = Color.Gray)
+                            Text("自定义大模型配置 (API 地址 / 模型名 / Key)", modifier = Modifier.weight(1f), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -347,17 +327,17 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text("会话总数", modifier = Modifier.weight(1f), fontSize = 14.sp)
-                        Text("$convCount", fontSize = 14.sp, color = Primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                        Text("$convCount", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text("消息总数", modifier = Modifier.weight(1f), fontSize = 14.sp)
-                        Text("$msgCount", fontSize = 14.sp, color = Primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                        Text("$msgCount", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text("存储占用", modifier = Modifier.weight(1f), fontSize = 14.sp)
-                        Text(storageSize, fontSize = 14.sp, color = Primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                        Text(storageSize, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                     }
                 }
             }
@@ -391,7 +371,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(modifier = Modifier.padding(16.dp)) {
-                            Text("清除所有对话（不可恢复）", color = Color(0xFFD32F2F))
+                            Text("清除所有对话（不可恢复）", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -429,7 +409,7 @@ fun SettingsScreen(
                         showClearConfirm = false
                     },
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = Color(0xFFD32F2F)
+                        contentColor = MaterialTheme.colorScheme.error
                     )
                 ) { Text("清除") }
             },
@@ -454,7 +434,7 @@ fun SettingsScreen(
                         showCacheDialog = false
                     },
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = Color(0xFFD32F2F)
+                        contentColor = MaterialTheme.colorScheme.error
                     )
                 ) { Text("清理") }
             },
@@ -500,7 +480,7 @@ private fun DropdownSelector(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(value, modifier = Modifier.weight(1f), fontSize = 14.sp)
-                Text("▼", fontSize = 12.sp, color = Color.Gray)
+                Text("▼", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         DropdownMenu(

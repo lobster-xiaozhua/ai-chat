@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -31,11 +32,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -85,7 +93,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.example.aichat.data.model.Conversation
 import com.example.aichat.data.model.Message
-import com.example.aichat.ui.theme.Primary
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,9 +115,9 @@ fun ChatScreen(
     val conversations by conversationListViewModel.conversations.collectAsState()
     val lastGenerationFailed by chatViewModel.lastGenerationFailed.collectAsState()
 
-    val pendingImageUrls = chatViewModel.pendingImageUrls
-    val pendingDocumentUrls = chatViewModel.pendingDocumentUrls
-    val pendingDocumentNames = chatViewModel.pendingDocumentNames
+    val pendingImageUrls by chatViewModel.pendingImageUrls.collectAsState()
+    val pendingDocumentUrls by chatViewModel.pendingDocumentUrls.collectAsState()
+    val pendingDocumentNames by chatViewModel.pendingDocumentNames.collectAsState()
 
     val imagePicker = rememberImagePicker(onPicked = { newUris ->
         chatViewModel.addImageUrls(newUris)
@@ -128,6 +135,7 @@ fun ChatScreen(
     var showMsgMenu by remember { mutableStateOf(false) }
 
     val activeConversationId by chatViewModel.currentConversationId.collectAsState()
+    val currentConvTitle = conversations.firstOrNull { it.id == activeConversationId }?.title ?: "新对话"
 
     LaunchedEffect(activeConversationId) {
         if (activeConversationId == null) {
@@ -229,6 +237,7 @@ fun ChatScreen(
             isGenerating = isGenerating,
             lastGenerationFailed = lastGenerationFailed,
             currentModel = currentModel,
+            conversationTitle = currentConvTitle,
             listState = listState,
             inputText = inputText,
             pendingImageUrls = pendingImageUrls,
@@ -260,7 +269,10 @@ fun ChatScreen(
                 showMsgMenu = true
             },
             onRegenerate = { chatViewModel.regenerateLastAssistant() },
-            onSendExample = { text -> inputText = text; chatViewModel.sendMessage(text.trim()) },
+            onSendExample = { text ->
+                inputText = ""
+                chatViewModel.sendMessage(text.trim())
+            },
             snackbarHostState = snackbarHostState,
             plusExpanded = showPlusSheet,
             onTogglePlus = { showPlusSheet = !showPlusSheet },
@@ -288,19 +300,19 @@ fun ChatScreen(
                 leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
             )
             DropdownMenuItem(
-                text = { Text("删除", color = Color(0xFFD32F2F)) },
+                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
                 onClick = {
                     chatViewModel.deleteMessage(msg.id)
                     showMsgMenu = false
                     selectedMessage = null
                 },
-                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp)) }
+                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) }
             )
             if (msg.role == "assistant") {
                 DropdownMenuItem(
                     text = { Text("重新生成") },
                     onClick = {
-                        chatViewModel.regenerateLastAssistant()
+                        chatViewModel.regenerateMessage(msg.id)
                         showMsgMenu = false
                         selectedMessage = null
                     },
@@ -313,50 +325,43 @@ fun ChatScreen(
     // Plus 折叠面板（输入栏上方展开，非全屏遮罩）
 
     if (showModelSelector) {
-        Surface(
-            color = Color.Black.copy(alpha = 0.4f),
-            modifier = Modifier.fillMaxSize().clickable { showModelSelector = false }
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showModelSelector = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
         ) {
-            Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("选择模型", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp))
+                if (quickModels.size == 1 && quickModels[0] == currentModel) {
+                    Text("尚未选择常用模型，点击下方按钮前往选择。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
+                }
+                quickModels.forEach { id ->
+                    val selected = currentModel == id
+                    Surface(
+                        onClick = { chatViewModel.setModel(id); showModelSelector = false },
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(friendlyModelName(id), color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(16.dp).weight(1f), fontSize = 13.sp)
+                            if (selected) {
+                                Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.padding(end = 12.dp))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 Surface(
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    onClick = { showModelSelector = false; onNavigateToModelPicker() },
                     color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("选择模型", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp))
-                        if (quickModels.size == 1 && quickModels[0] == currentModel) {
-                            Text("尚未选择常用模型，点击下方按钮前往选择。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
-                        }
-                        quickModels.forEach { id ->
-                            val selected = currentModel == id
-                            Surface(
-                                onClick = { chatViewModel.setModel(id); showModelSelector = false },
-                                color = if (selected) Primary else MaterialTheme.colorScheme.surfaceVariant,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(friendlyModelName(id), color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(16.dp).weight(1f), fontSize = 13.sp)
-                                    if (selected) {
-                                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.padding(end = 12.dp))
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Surface(
-                            onClick = { showModelSelector = false; onNavigateToModelPicker() },
-                            color = MaterialTheme.colorScheme.surface,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Primary, modifier = Modifier.padding(16.dp))
-                                Text("选择更多模型 (搜索 / 多选)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                            }
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp))
+                        Text("选择更多模型 (搜索 / 多选)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -372,6 +377,7 @@ private fun MainChatContent(
     isGenerating: Boolean,
     lastGenerationFailed: Boolean,
     currentModel: String,
+    conversationTitle: String,
     listState: androidx.compose.foundation.lazy.LazyListState,
     inputText: String,
     pendingImageUrls: List<String>,
@@ -404,7 +410,7 @@ private fun MainChatContent(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("新对话", style = MaterialTheme.typography.titleMedium) },
+                title = { Text(conversationTitle, style = MaterialTheme.typography.titleMedium, maxLines = 1) },
                 navigationIcon = { IconButton(onClick = onMenuClick) { Icon(Icons.Default.Menu, contentDescription = "菜单") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 modifier = Modifier.statusBarsPadding()
@@ -544,16 +550,15 @@ private fun ChatInputBar(
                     Surface(
                         onClick = onTogglePlus,
                         shape = CircleShape,
-                        color = if (plusExpanded) Primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+                        color = if (plusExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
                         modifier = Modifier.size(36.dp).semantics { contentDescription = "更多选项" }
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Text(
-                                if (plusExpanded) "✕" else "+",
-                                color = if (plusExpanded) Primary else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            if (plusExpanded) {
+                                Icon(Icons.Default.Close, contentDescription = "关闭", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            } else {
+                                Icon(Icons.Default.Add, contentDescription = "更多选项", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                            }
                         }
                     }
 
@@ -562,7 +567,8 @@ private fun ChatInputBar(
                     androidx.compose.foundation.text.BasicTextField(
                         value = inputText,
                         onValueChange = onInputChange,
-                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                        modifier = Modifier.weight(1f).padding(end = 8.dp).heightIn(min = 24.dp, max = 120.dp),
+                        maxLines = 6,
                         textStyle = androidx.compose.ui.text.TextStyle(
                             color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 15.sp
@@ -584,14 +590,14 @@ private fun ChatInputBar(
                     Surface(
                         onClick = if (isGenerating) onStop else onSend,
                         shape = CircleShape,
-                        color = if (isGenerating) Color(0xFFD32F2F) else Primary,
+                        color = if (isGenerating) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             if (isGenerating) {
                                 Icon(Icons.Default.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(16.dp))
                             } else {
-                                Text("→", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.ArrowForward, contentDescription = "发送", tint = Color.White, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -602,12 +608,12 @@ private fun ChatInputBar(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ModeChip(label = "Think", isOn = thinkMode, onClick = onToggleThink, icon = "✓")
-                    ModeChip(label = "Search", isOn = searchMode, onClick = onToggleSearch, icon = "🌐")
+                    ModeChip(label = "Think", isOn = thinkMode, onClick = onToggleThink, icon = Icons.Default.Psychology)
+                    ModeChip(label = "Search", isOn = searchMode, onClick = onToggleSearch, icon = Icons.Default.Language)
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    ModeChip(label = friendlyModelName(currentModel), isOn = false, onClick = onModelClick, icon = "", isModelChip = true)
+                    ModeChip(label = friendlyModelName(currentModel), isOn = false, onClick = onModelClick, isModelChip = true)
                 }
             }
         }
@@ -617,7 +623,7 @@ private fun ChatInputBar(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                pendingImageUrls.take(6).forEach { url ->
+                pendingImageUrls.forEach { url ->
                     Box(modifier = Modifier.size(64.dp)) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
@@ -676,14 +682,14 @@ private fun ModeChip(
     label: String,
     isOn: Boolean,
     onClick: () -> Unit,
-    icon: String = "",
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     isModelChip: Boolean = false
 ) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
         color = when {
-            isOn && !isModelChip -> Primary
+            isOn && !isModelChip -> MaterialTheme.colorScheme.primary
             isModelChip && !isOn -> MaterialTheme.colorScheme.surface
             else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
         }
@@ -692,8 +698,14 @@ private fun ModeChip(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (icon.isNotEmpty()) {
-                Text(icon, fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp), color = if (isOn) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+            if (icon != null) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = if (isOn) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(4.dp))
             }
             Text(
                 label,
@@ -723,9 +735,9 @@ private fun InlinePlusPanel(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                SheetAction(icon = "📷", label = "相机", onClick = onPickFromCamera)
-                SheetAction(icon = "🖼️", label = "相册", onClick = onPickPhoto)
-                SheetAction(icon = "📄", label = "文档", onClick = onPickDocument)
+                SheetAction(icon = Icons.Default.CameraAlt, label = "相机", onClick = onPickFromCamera)
+                SheetAction(icon = Icons.Default.PhotoLibrary, label = "相册", onClick = onPickPhoto)
+                SheetAction(icon = Icons.Default.Description, label = "文档", onClick = onPickDocument)
             }
             Divider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 4.dp))
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -737,14 +749,14 @@ private fun InlinePlusPanel(
 }
 
 @Composable
-private fun SheetAction(icon: String, label: String, onClick: () -> Unit) {
+private fun SheetAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clickable(onClick = onClick, onClickLabel = label).padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.size(56.dp)) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Text(icon, fontSize = 24.sp)
+                Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 6.dp))
@@ -754,7 +766,7 @@ private fun SheetAction(icon: String, label: String, onClick: () -> Unit) {
 @Composable
 private fun EmptyState(onSend: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text("✨ AI 助手", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 24.dp))
+        Text("AI 助手", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 24.dp))
         Text("输入消息开始对话，或试试这些示例：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 24.dp))
         val examples = listOf("帮我写一个 Kotlin 协程的例子", "用简单的方式解释 Transformer 架构", "写一首关于夏日的短诗")
         examples.forEach { example ->
@@ -788,7 +800,7 @@ private fun ConversationDrawer(
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("历史对话", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = onNewChat) { Icon(Icons.Default.Add, contentDescription = "新建对话", tint = Primary) }
+            IconButton(onClick = onNewChat) { Icon(Icons.Default.Add, contentDescription = "新建对话", tint = MaterialTheme.colorScheme.primary) }
         }
 
         // 搜索框
@@ -814,7 +826,7 @@ private fun ConversationDrawer(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(conversations, key = { it.id }) { conv ->
                     val isActive = conv.id == activeConversationId
-                    val bgColor = if (isActive) Primary.copy(alpha = 0.1f) else Color.Transparent
+                    val bgColor = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
                     Surface(
                         color = bgColor,
                         modifier = Modifier.fillMaxWidth().combinedClickable(
@@ -830,7 +842,7 @@ private fun ConversationDrawer(
                                 Icon(
                                     Icons.Default.PushPin,
                                     contentDescription = "已置顶",
-                                    tint = Primary,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(14.dp).padding(end = 2.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -862,9 +874,9 @@ private fun ConversationDrawer(
                             leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                         DropdownMenuItem(
-                            text = { Text("删除", color = Color(0xFFD32F2F)) },
+                            text = { Text("删除", color = MaterialTheme.colorScheme.error) },
                             onClick = { menuConvId = null; showDeleteConfirmId = conv.id },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(18.dp)) }
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) }
                         )
                     }
                 }
@@ -913,7 +925,7 @@ private fun ConversationDrawer(
                             showDeleteConfirmId = null
                         },
                         colors = ButtonDefaults.textButtonColors(
-                            contentColor = Color(0xFFD32F2F)
+                            contentColor = MaterialTheme.colorScheme.error
                         )
                     ) { Text("删除") }
                 },
@@ -925,7 +937,7 @@ private fun ConversationDrawer(
 
         Divider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(modifier = Modifier.fillMaxWidth().clickable { onNavigateToAccount() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = CircleShape, color = Primary, modifier = Modifier.size(36.dp)) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) {
                 Box(contentAlignment = Alignment.Center) { Text("U", color = Color.White, fontWeight = FontWeight.Bold) }
             }
             Spacer(modifier = Modifier.width(12.dp))
