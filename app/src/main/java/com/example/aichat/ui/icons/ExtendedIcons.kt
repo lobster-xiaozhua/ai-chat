@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector.Builder
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
 
 /**
  * 项目使用的 Material 扩展图标。

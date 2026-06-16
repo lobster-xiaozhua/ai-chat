@@ -220,10 +220,10 @@ class AiRepository @Inject constructor(
             )
         }
 
-        val body = response.body ?: {
+        val body = response.body ?: run {
             response.close()
             return@withContext RoundResult.Failed(ApiException.InvalidRequest("响应为空"))
-        }()
+        }
 
         val textBuilder = StringBuilder()
         val toolCallBuilder = mutableMapOf<Int, ToolCallBuilder>()

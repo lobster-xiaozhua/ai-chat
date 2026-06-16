@@ -1,10 +1,10 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    id("kotlin-android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
-    id("com.google.dagger.hilt.android")
+    id("dagger.hilt.android.plugin")
     id("androidx.room")
 }
 
@@ -21,11 +21,8 @@ android {
 
         vectorDrawables { useSupportLibrary = true }
 
-        // 仅打包 arm 架构 so 库 —— Android 10+ 真机均为 64 位或 32 位 ARM
-        // armeabi-v7a 兼容老机型，arm64-v8a 为荣耀 90GT 主流架构
-        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
-
         // ABI 拆分：每个架构生成独立 APK，减少单个包体积约 40-50%
+        // 注意：使用 splits 时不能同时设置 ndk.abiFilters
         splits {
             abi {
                 isEnable = true
@@ -138,6 +135,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material3:material3-window-size-class")
     implementation("androidx.navigation:navigation-compose:2.9.0")
