@@ -1,10 +1,20 @@
-plugins {
-    id("com.android.application") version "8.10.0" apply false
-    id("org.jetbrains.kotlin.android") version "2.3.0" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.0" apply false
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0" apply false
-    id("com.google.devtools.ksp") version "2.3.9" apply false
-    // Hilt 2.59+ 要求 AGP 9.x（Breaking change），当前 AGP 8.x 需锁定 2.58
-    id("com.google.dagger.hilt.android") version "2.58" apply false
-    id("androidx.room") version "2.8.4" apply false
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.10.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.0")
+        classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.3.0")
+        classpath("org.jetbrains.kotlin:kotlin-serialization:2.3.0")
+        classpath("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.0")
+        classpath("com.google.dagger:hilt-android-gradle-plugin:2.58")
+        classpath("androidx.room:room-gradle-plugin:2.8.4")
+    }
+}
+
+tasks.register("clean", Delete::class) {
+    delete(rootProject.layout.buildDirectory)
 }

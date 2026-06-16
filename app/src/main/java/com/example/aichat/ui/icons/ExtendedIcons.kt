@@ -18,10 +18,43 @@ import androidx.compose.material.icons.Icons
 val Icons.Extended: ExtendedIcons
     get() = ExtendedIcons
 
-object ExtendedIcons
+object ExtendedIcons {
+    val Psychology: ImageVector
+        get() = _psychology
 
-val ExtendedIcons.Psychology: ImageVector
-    get() = _psychology
+    val Language: ImageVector
+        get() = _language
+
+    val CameraAlt: ImageVector
+        get() = _cameraAlt
+
+    val PhotoLibrary: ImageVector
+        get() = _photoLibrary
+
+    val Description: ImageVector
+        get() = _description
+
+    val ArrowForward: ImageVector
+        get() = _arrowForward
+
+    val BrokenImage: ImageVector
+        get() = _brokenImage
+
+    val ContentCopy: ImageVector
+        get() = _contentCopy
+
+    val PushPin: ImageVector
+        get() = _pushPin
+
+    val Stop: ImageVector
+        get() = _stop
+
+    val Visibility: ImageVector
+        get() = _visibility
+
+    val VisibilityOff: ImageVector
+        get() = _visibilityOff
+}
 
 private val _psychology = Builder(
     name = "Psychology",
@@ -93,9 +126,6 @@ private val _psychology = Builder(
     }
 }.build()
 
-val ExtendedIcons.Language: ImageVector
-    get() = _language
-
 private val _language = Builder(
     name = "Language",
     defaultWidth = 24.dp,
@@ -148,9 +178,6 @@ private val _language = Builder(
         close()
     }
 }.build()
-
-val ExtendedIcons.CameraAlt: ImageVector
-    get() = _cameraAlt
 
 private val _cameraAlt = Builder(
     name = "CameraAlt",
@@ -219,9 +246,6 @@ private val _cameraAlt = Builder(
     }
 }.build()
 
-val ExtendedIcons.PhotoLibrary: ImageVector
-    get() = _photoLibrary
-
 private val _photoLibrary = Builder(
     name = "PhotoLibrary",
     defaultWidth = 24.dp,
@@ -265,9 +289,6 @@ private val _photoLibrary = Builder(
         close()
     }
 }.build()
-
-val ExtendedIcons.Description: ImageVector
-    get() = _description
 
 private val _description = Builder(
     name = "Description",
@@ -317,9 +338,6 @@ private val _description = Builder(
     }
 }.build()
 
-val ExtendedIcons.ArrowForward: ImageVector
-    get() = _arrowForward
-
 private val _arrowForward = Builder(
     name = "ArrowForward",
     defaultWidth = 24.dp,
@@ -353,9 +371,6 @@ private val _arrowForward = Builder(
         close()
     }
 }.build()
-
-val ExtendedIcons.BrokenImage: ImageVector
-    get() = _brokenImage
 
 private val _brokenImage = Builder(
     name = "BrokenImage",
@@ -414,9 +429,6 @@ private val _brokenImage = Builder(
     }
 }.build()
 
-val ExtendedIcons.ContentCopy: ImageVector
-    get() = _contentCopy
-
 private val _contentCopy = Builder(
     name = "ContentCopy",
     defaultWidth = 24.dp,
@@ -454,9 +466,6 @@ private val _contentCopy = Builder(
         close()
     }
 }.build()
-
-val ExtendedIcons.PushPin: ImageVector
-    get() = _pushPin
 
 private val _pushPin = Builder(
     name = "PushPin",
@@ -496,9 +505,6 @@ private val _pushPin = Builder(
     }
 }.build()
 
-val ExtendedIcons.Stop: ImageVector
-    get() = _stop
-
 private val _stop = Builder(
     name = "Stop",
     defaultWidth = 24.dp,
@@ -527,9 +533,6 @@ private val _stop = Builder(
         close()
     }
 }.build()
-
-val ExtendedIcons.Visibility: ImageVector
-    get() = _visibility
 
 private val _visibility = Builder(
     name = "Visibility",
@@ -571,9 +574,6 @@ private val _visibility = Builder(
         close()
     }
 }.build()
-
-val ExtendedIcons.VisibilityOff: ImageVector
-    get() = _visibilityOff
 
 private val _visibilityOff = Builder(
     name = "VisibilityOff",

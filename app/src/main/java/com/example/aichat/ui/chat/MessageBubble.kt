@@ -27,6 +27,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import com.example.aichat.ui.icons.ExtendedIcons
+import com.example.aichat.ui.icons.Extended
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
