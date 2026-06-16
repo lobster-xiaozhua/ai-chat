@@ -44,9 +44,6 @@ class ChatRepository @Inject constructor(
         conversationDao.deleteAll()
     }
 
-    fun getMessages(conversationId: String): androidx.paging.PagingSource<Int, Message> =
-        messageDao.getMessages(conversationId)
-
     fun getMessagesFlow(conversationId: String): kotlinx.coroutines.flow.Flow<List<Message>> =
         messageDao.getMessagesFlow(conversationId)
 

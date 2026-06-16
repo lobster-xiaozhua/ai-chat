@@ -16,8 +16,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import com.example.aichat.ui.icons.ExtendedIcons
+import com.example.aichat.ui.icons.Extended
+
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -129,7 +130,7 @@ fun CustomModelScreen(onBack: () -> Unit = {}) {
                 trailingIcon = {
                     IconButton(onClick = { showApiKey = !showApiKey }) {
                         Icon(
-                            if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            if (showApiKey) Icons.Extended.Visibility else Icons.Extended.VisibilityOff,
                             contentDescription = if (showApiKey) "隐藏" else "显示",
                             modifier = Modifier.size(20.dp)
                         )

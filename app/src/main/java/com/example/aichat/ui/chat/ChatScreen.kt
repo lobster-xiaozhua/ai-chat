@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -32,22 +31,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Stop
+import com.example.aichat.ui.icons.ExtendedIcons
+import com.example.aichat.ui.icons.Extended
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
@@ -90,7 +82,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.compose.AsyncImage
+import androidx.compose.foundation.Image
+
+import androidx.compose.ui.graphics.asImageBitmap
 import com.example.aichat.data.model.Conversation
 import com.example.aichat.data.model.Message
 import kotlinx.coroutines.launch
@@ -297,7 +291,7 @@ fun ChatScreen(
                     showMsgMenu = false
                     selectedMessage = null
                 },
-                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                leadingIcon = { Icon(Icons.Extended.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
             )
             DropdownMenuItem(
                 text = { Text("删除", color = MaterialTheme.colorScheme.error) },
@@ -595,9 +589,9 @@ private fun ChatInputBar(
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             if (isGenerating) {
-                                Icon(Icons.Default.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Extended.Stop, contentDescription = "停止", tint = Color.White, modifier = Modifier.size(16.dp))
                             } else {
-                                Icon(Icons.Default.ArrowForward, contentDescription = "发送", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Extended.ArrowForward, contentDescription = "发送", tint = Color.White, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -608,8 +602,8 @@ private fun ChatInputBar(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ModeChip(label = "Think", isOn = thinkMode, onClick = onToggleThink, icon = Icons.Default.Psychology)
-                    ModeChip(label = "Search", isOn = searchMode, onClick = onToggleSearch, icon = Icons.Default.Language)
+                    ModeChip(label = "Think", isOn = thinkMode, onClick = onToggleThink, icon = Icons.Extended.Psychology)
+                    ModeChip(label = "Search", isOn = searchMode, onClick = onToggleSearch, icon = Icons.Extended.Language)
 
                     Spacer(modifier = Modifier.weight(1f))
 
@@ -630,11 +624,9 @@ private fun ChatInputBar(
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier.matchParentSize()
                         ) {
-                            AsyncImage(
-                                model = Uri.parse(url),
-                                contentDescription = "图片附件",
-                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)),
-                                contentScale = ContentScale.Crop
+                            LocalImage(
+                                uri = url,
+                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp))
                             )
                         }
                         Surface(onClick = { onRemoveImage(url) }, shape = CircleShape, color = Color(0xFF666666), modifier = Modifier.size(18.dp).align(Alignment.TopEnd).semantics { contentDescription = "移除图片" }) {
@@ -735,9 +727,9 @@ private fun InlinePlusPanel(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                SheetAction(icon = Icons.Default.CameraAlt, label = "相机", onClick = onPickFromCamera)
-                SheetAction(icon = Icons.Default.PhotoLibrary, label = "相册", onClick = onPickPhoto)
-                SheetAction(icon = Icons.Default.Description, label = "文档", onClick = onPickDocument)
+                SheetAction(icon = Icons.Extended.CameraAlt, label = "相机", onClick = onPickFromCamera)
+                SheetAction(icon = Icons.Extended.PhotoLibrary, label = "相册", onClick = onPickPhoto)
+                SheetAction(icon = Icons.Extended.Description, label = "文档", onClick = onPickDocument)
             }
             Divider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 4.dp))
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -840,7 +832,7 @@ private fun ConversationDrawer(
                         ) {
                             if (conv.isPinned) {
                                 Icon(
-                                    Icons.Default.PushPin,
+                                    Icons.Extended.PushPin,
                                     contentDescription = "已置顶",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(14.dp).padding(end = 2.dp)
@@ -861,7 +853,7 @@ private fun ConversationDrawer(
                         DropdownMenuItem(
                             text = { Text(if (conv.isPinned) "取消置顶" else "置顶") },
                             onClick = { menuConvId = null; onTogglePin(conv.id, conv.isPinned) },
-                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                            leadingIcon = { Icon(Icons.Extended.PushPin, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("重命名") },
@@ -871,7 +863,7 @@ private fun ConversationDrawer(
                         DropdownMenuItem(
                             text = { Text("导出") },
                             onClick = { menuConvId = null; onExport(conv.id) },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                            leadingIcon = { Icon(Icons.Extended.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("删除", color = MaterialTheme.colorScheme.error) },
@@ -973,4 +965,31 @@ private fun friendlyModelName(model: String): String = when {
     model == "deepseek-chat" -> "DeepSeek Chat"
     model == "deepseek-coder" -> "DeepSeek Coder"
     else -> model
+}
+
+@Composable
+private fun LocalImage(uri: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap = remember(uri) {
+        runCatching {
+            val parsed = android.net.Uri.parse(uri)
+            context.contentResolver.openInputStream(parsed)?.use { input ->
+                android.graphics.BitmapFactory.decodeStream(input)
+            }
+        }.getOrNull()
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceVariant) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(Icons.Extended.BrokenImage, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }

@@ -1,10 +1,8 @@
 pluginManagement {
     repositories {
         google()
-        gradlePluginPortal()
         mavenCentral()
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        gradlePluginPortal()
     }
 }
 dependencyResolutionManagement {
@@ -12,8 +10,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
     }
 }
 rootProject.name = "ai-chat"

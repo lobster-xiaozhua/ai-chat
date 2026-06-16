@@ -20,8 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import com.example.aichat.ui.icons.ExtendedIcons
+import com.example.aichat.ui.icons.Extended
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -244,7 +245,7 @@ fun SettingsScreen(
                         trailingIcon = {
                             IconButton(onClick = { showApiKey = !showApiKey }) {
                                 Icon(
-                                    if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    if (showApiKey) Icons.Extended.Visibility else Icons.Extended.VisibilityOff,
                                     contentDescription = if (showApiKey) "隐藏" else "显示",
                                     modifier = Modifier.size(20.dp)
                                 )
