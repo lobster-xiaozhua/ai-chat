@@ -150,11 +150,9 @@ class EmbeddingsRepository @Inject constructor(
             url,
             auth,
             EmbeddingRequest(model = model, input = listOf(text))
-        ).execute()
+        )
 
-        if (!response.isSuccessful) error("embeddings failed: ${response.code()}")
-        val body = response.body() ?: error("empty response")
-        body.data.firstOrNull()?.embedding?.toFloatArray()
+        response.data.firstOrNull()?.embedding?.toFloatArray()
             ?: error("no embedding returned")
     }
 

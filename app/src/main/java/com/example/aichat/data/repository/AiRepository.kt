@@ -17,9 +17,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import okhttp3.ResponseBody
-import retrofit2.Call
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -193,28 +192,24 @@ class AiRepository @Inject constructor(
         request: ChatCompletionRequest
     ): RoundResult = withContext(Dispatchers.IO) {
 
-        val call = apiService.streamChatCompletion(url, auth, request)
+        val requestJson = json.encodeToString(ChatCompletionRequest.serializer(), request)
         val job = coroutineContext[Job]
 
-        // 协程取消时立即取消 OkHttp Call，确保网络连接被释放
-        job?.invokeOnCompletion { runCatching { call.cancel() } }
-
         val response = try {
-            call.execute()
+            apiService.streamChatCompletion(url, auth, requestJson)
         } catch (e: java.io.IOException) {
             if (job?.isCancelled == true) return@withContext RoundResult.Text("")
             return@withContext RoundResult.Failed(ApiException.Network(e))
         } catch (e: kotlinx.coroutines.CancellationException) {
-            // 协程被取消（用户点停止），不包装为错误，直接传播
-            runCatching { call.cancel() }
             return@withContext RoundResult.Text("")
         } catch (e: Exception) {
             return@withContext RoundResult.Failed(ApiException.Unknown(e))
         }
 
         if (!response.isSuccessful) {
-            val code = response.code()
-            val err = response.errorBody()?.use { it.string().take(200) }.orEmpty()
+            val code = response.code
+            val err = response.body?.use { it.string().take(200) }.orEmpty()
+            response.close()
             return@withContext RoundResult.Failed(
                 when (code) {
                     401, 403 -> ApiException.Unauthorized()
@@ -225,9 +220,10 @@ class AiRepository @Inject constructor(
             )
         }
 
-        val body = response.body() ?: return@withContext RoundResult.Failed(
-            ApiException.InvalidRequest("响应为空")
-        )
+        val body = response.body ?: {
+            response.close()
+            return@withContext RoundResult.Failed(ApiException.InvalidRequest("响应为空"))
+        }()
 
         val textBuilder = StringBuilder()
         val toolCallBuilder = mutableMapOf<Int, ToolCallBuilder>()
@@ -255,8 +251,8 @@ class AiRepository @Inject constructor(
                 }
             }
         } finally {
-            // 确保 ResponseBody 被关闭，防止文件描述符泄漏
             runCatching { body.close() }
+            runCatching { response.close() }
         }
 
         if (sawToolCalls && toolCallBuilder.isNotEmpty()) {
