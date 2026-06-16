@@ -1,6 +1,5 @@
 package com.example.aichat.ui.chat
 
-import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -23,7 +22,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import com.example.aichat.ui.icons.ExtendedIcons
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * 消息气泡 —— 支持纯文本、流式文本、以及文本+图片（用户消息）。
@@ -107,25 +112,43 @@ private fun ImageGrid(urls: List<String>, isUser: Boolean) {
 
 @Composable
 private fun SingleImage(url: String, modifier: Modifier = Modifier) {
-    val imageUri = try {
-        Uri.parse(url)
-    } catch (_: Exception) {
-        null
-    }
-
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .aspectRatio(1.0f)
     ) {
-        if (imageUri != null) {
-            AsyncImage(
-                model = imageUri,
-                contentDescription = "图片附件",
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
+        LocalImage(
+            uri = url,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
+        )
+    }
+}
+
+@Composable
+private fun LocalImage(uri: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop) {
+    val context = LocalContext.current
+    val bitmap = remember(uri) {
+        runCatching {
+            val parsed = android.net.Uri.parse(uri)
+            context.contentResolver.openInputStream(parsed)?.use { input ->
+                android.graphics.BitmapFactory.decodeStream(input)
+            }
+        }.getOrNull()
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = contentScale
+        )
+    } else {
+        Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceVariant) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(Icons.Extended.BrokenImage, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

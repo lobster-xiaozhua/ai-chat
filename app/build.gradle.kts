@@ -24,6 +24,16 @@ android {
         // 仅打包 arm 架构 so 库 —— Android 10+ 真机均为 64 位或 32 位 ARM
         // armeabi-v7a 兼容老机型，arm64-v8a 为荣耀 90GT 主流架构
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
+
+        // ABI 拆分：每个架构生成独立 APK，减少单个包体积约 40-50%
+        splits {
+            abi {
+                isEnable = true
+                reset()
+                include("armeabi-v7a", "arm64-v8a")
+                isUniversalApk = false
+            }
+        }
     }
 
     // release 签名配置：优先从 gradle.properties（或 CI 通过 -P 注入）读取，
@@ -59,8 +69,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             // 首选 release 签名；如未找到，则回退到 debug 签名（避免 CI 上因缺密钥而失败）
             signingConfig = signingConfigs.findByName("release")
                 ?.takeIf { it.storeFile?.exists() == true }
@@ -93,6 +103,13 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/versions/9/**"
+            excludes += "kotlin/**"
+            excludes += "okhttp3/internal/publicsuffix/**"
+        }
+        jniLibs {
+            // 如果同一个 so 出现在多个依赖中，只取第一个
+            pickFirsts += listOf("**/*.so")
         }
     }
 }
@@ -123,36 +140,28 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material3:material3-window-size-class")
-    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.9.0")
 
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
-    implementation("androidx.room:room-paging:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    implementation("androidx.paging:paging-runtime-ktx:3.3.2")
-    implementation("androidx.paging:paging-compose:3.3.2")
 
     implementation("com.google.dagger:hilt-android:2.58")
     ksp("com.google.dagger:hilt-android-compiler:2.58")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
-    implementation("com.squareup.retrofit2:converter-kotlinx-serialization:3.0.0")
 
     // security-crypto 已于 2024 年被 Google 废弃（1.1.0-alpha07 停更），
     // 改用社区维护 fork dev.spght:encryptedprefs-ktx，API 完全兼容，Tink 依赖持续更新。
     // 迁移只需替换依赖坐标 + import 路径（androidx.security.crypto → dev.spght.encryptedprefs）。
     implementation("dev.spght:encryptedprefs-ktx:1.1.1")
 
-    implementation("io.coil-kt.coil3:coil-compose:3.4.0")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.4.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
